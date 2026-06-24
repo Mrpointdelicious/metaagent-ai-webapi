@@ -1,0 +1,73 @@
+# Build output
+bin/
+obj/
+out/
+artifacts/
+TestResults/
+*.nupkg
+*.snupkg
+
+# Visual Studio / Rider / VS Code local state
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.rsuser
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+_ReSharper*/
+
+# Local AI/editor settings
+.claude/
+
+# Logs and temp files
+logs/
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+secrets.json
+*.publishsettings
+*.pubxml.user
+
+# Certificates, keys, and local credential stores
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*.jks
+*.keystore
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+
+# Application settings with real connection strings
+**/appsettings.json
+**/appsettings.*.json
+**/appsettings_*.json
+!**/appsettings.example.json
+!**/appsettings.Example.json
+
+# Generated document render checks
+docx_render_check/
+docx_render_rehab_expansion/
+
+# Internal design documents found to contain environment details
+/接口设计/

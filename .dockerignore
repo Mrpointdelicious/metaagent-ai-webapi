@@ -1,0 +1,17 @@
+**/bin
+**/obj
+.vs/
+.git/
+.claude/
+
+# Do not bake local secrets into Docker images.
+**/appsettings.json
+**/appsettings.*.json
+**/appsettings_*.json
+!**/appsettings.example.json
+
+# Local/generated documents and reports.
+docx_render_check/
+docx_render_rehab_expansion/
+ReadMe.md
+接口设计/

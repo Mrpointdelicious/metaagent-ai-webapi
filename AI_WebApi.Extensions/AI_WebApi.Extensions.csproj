@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Autofac" Version="7.1.0" />
+    <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Autofac.Extras.DynamicProxy" Version="7.1.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.169" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AI_WebApi.Common\AI_WebApi.Common.csproj" />
+    <ProjectReference Include="..\AI_WebApi.IServices\AI_WebApi.IServices.csproj" />
+    <ProjectReference Include="..\AI_WebApi.Repository\AI_WebApi.Repository.csproj" />
+    <ProjectReference Include="..\AI_WebApi.Services\AI_WebApi.Services.csproj" />
+  </ItemGroup>
+
+</Project>

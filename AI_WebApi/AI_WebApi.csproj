@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Autofac" Version="7.1.0" />
+    <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="6.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AI_WebApi.Common\AI_WebApi.Common.csproj" />
+    <ProjectReference Include="..\AI_WebApi.Extensions\AI_WebApi.Extensions.csproj" />
+    <ProjectReference Include="..\AI_WebApi.IServices\AI_WebApi.IServices.csproj" />
+    <ProjectReference Include="..\AI_WebApi.Model\AI_WebApi.Model.csproj" />
+    <ProjectReference Include="..\AI_WebApi.Services\AI_WebApi.Services.csproj" />
+  </ItemGroup>
+
+</Project>
