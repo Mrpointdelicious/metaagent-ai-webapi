@@ -40,6 +40,7 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+!.env.ai_webapi.example
 secrets.json
 *.publishsettings
 *.pubxml.user
@@ -71,3 +72,19 @@ docx_render_rehab_expansion/
 
 # Internal design documents found to contain environment details
 /接口设计/
+/outputs/
+outputs/
+AgentWorkSpace/
+.codex_tmp
+.codex-tmp
+.codex-temp
+docx_render_rehab_expansion/
+docx_render_check/
+
+# Runtime-generated durable report artifacts
+/AI_WebApi/data/patient-reports/
+/AI_WebApi/data/hospital-operation-reports/
+
+# Local backup archives and generated PDF/image inspection output.
+/AI_WebApi.zip
+/tmp/

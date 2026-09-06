@@ -3,6 +3,20 @@
 .vs/
 .git/
 .claude/
+tmp/
+outputs/
+**/data/patient-reports/
+**/data/hospital-operation-reports/
+AI_WebApi.Tests/
+*.zip
+*.7z
+
+# Runtime environment files are supplied by compose at container start and
+# must never enter the Docker build context.
+.env
+.env.*
+!.env.example
+!.env.ai_webapi.example
 
 # Do not bake local secrets into Docker images.
 **/appsettings.json

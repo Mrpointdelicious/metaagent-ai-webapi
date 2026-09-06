@@ -1,8 +1,9 @@
-/// 魏道好 2026/06/16修改
-/// 添加OpenApi
-
 using AI_WebApi.Common.Helper;
 using AI_WebApi.Extensions.ServiceExtensions;
+using AI_WebApi.Model.AITools;
+using AI_WebApi.Model.DTOs.AITools;
+using AI_WebApi.Security;
+using AI_WebApi.Swagger;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
@@ -11,36 +12,38 @@ using Swashbuckle.AspNetCore.Swagger;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 配置 Autofac
 builder.Host
     .UseServiceProviderFactory(new AutofacServiceProviderFactory())
-    .ConfigureContainer<ContainerBuilder>(builder =>
+    .ConfigureContainer<ContainerBuilder>(container =>
     {
-        builder.RegisterModule(new AutofacModuleRegister());
+        container.RegisterModule(new AutofacModuleRegister());
     });
 
-// 配置 AppSettings
 AppSettings.Configuration = builder.Configuration;
 builder.Services.AddSingleton(new AppSettings(builder.Configuration));
-
-// 添加 SqlSugar
 builder.Services.AddSqlsugarSetup();
+builder.Services.Configure<IReGoToolOptions>(
+    builder.Configuration.GetSection(IReGoToolOptions.SectionName));
+builder.Services.Configure<HospitalOperationsOptions>(
+    builder.Configuration.GetSection(HospitalOperationsOptions.SectionName));
+builder.Services.Configure<RehabToolsOptions>(
+    builder.Configuration.GetSection(RehabToolsOptions.SectionName));
+builder.Services.AddScoped<IDifySystemContextResolver, DifySystemContextResolver>();
+builder.Services.AddScoped<IDifyServiceRequestAuthenticator,
+    DifyServiceRequestAuthenticator>();
+builder.Services.AddHttpClient();
+builder.Services.AddMemoryCache();
 
-// 添加控制器
 builder.Services.AddControllers()
     .AddNewtonsoftJson(options =>
     {
         options.SerializerSettings.ReferenceLoopHandling =
             Newtonsoft.Json.ReferenceLoopHandling.Ignore;
-
         options.SerializerSettings.DateFormatString =
             "yyyy-MM-dd'T'HH:mm:sszzz";
     });
 
-// 添加 Swagger
 builder.Services.AddEndpointsApiExplorer();
-
-// 多文档配置
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
@@ -52,32 +55,72 @@ builder.Services.AddSwaggerGen(options =>
     options.SwaggerDoc("ai-patient-tools-v1", new OpenApiInfo
     {
         Title = "AI Patient Tools API",
-        Version = "0.1.0",
-        Description = "Dify / Agent 专用患者端 AI 工具接口。第一阶段只读，不允许传入 SQL、表名或字段名。"
+        Version = IReGoContract.Version,
+        Description =
+            "面向 Dify 的患者端只读工具。Authorization 由 Dify 工具凭据提供；" +
+            "system_context 必须由 Dify 系统/运行时变量注入，不得由 LLM 推断。" +
+            "session_ref 只能选择工具已经返回的稳定匿名引用，不得自行编造。" +
+            "唯一患者事实源为 robotdb_main。ReportList 元素统一解释为报告记录分段，" +
+            "临时身份映射只按 project_cpoy 姓名与 robotdb 患者类型解析唯一患者；" +
+            "零命中或多命中均拒绝映射。" +
+            "不得表述为多个独立训练项目。报告图片以稳定 artifact_ref 持久化；" +
+            "展示地址按需生成，不应写入聊天记录。"
     });
 
-    options.DocInclusionPredicate((docName, apiDesc) =>
+    options.SwaggerDoc("ai-hospital-tools-v1", new OpenApiInfo
     {
-        if (docName == "ai-patient-tools-v1")
-        {
-            return apiDesc.GroupName == "ai-patient-tools-v1";
-        }
-
-        return true;
+        Title = "AI Hospital Operations Tools API",
+        Version = HospitalOperationsContract.Version,
+        Description =
+            "面向 Dify Agent 的医院运营查询与报表接口。可查询医院范围以 directory 接口的当前返回为准，" +
+            "服务端使用接口11动态目录解析并复核 hospital_id；接口12—15用于运营数据聚合。" +
+            "医院对比只接受用户明确选择的两个不同目录ID，差值固定为右侧减左侧。" +
+            "整体或局部报表使用稳定 artifact_ref 持久保存，相同条件与数据复用同一报表。"
     });
 
+    options.SwaggerDoc("ai-rehab-tools-v1", new OpenApiInfo
+    {
+        Title = "AI Rehab Tools API",
+        Version = "1.0.0",
+        Description =
+            "面向 Dify 的在线医生查询和元宇宙场景导航接口。" +
+            "上游地址、账号和服务密钥全部由环境变量注入。"
+    });
+
+    options.AddSecurityDefinition(
+        DifyToolSecurityOperationFilter.SecuritySchemeId,
+        new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "opaque service token",
+            Description =
+                "Dify 工具服务凭据。只保存在 Dify 凭据配置和服务端密钥配置中，不进入提示词。"
+    });
+    options.OperationFilter<DifyToolSecurityOperationFilter>();
+    options.OperationFilter<RehabToolsOperationFilter>();
+    options.SchemaFilter<DifySystemContextSchemaFilter>();
+    options.DocInclusionPredicate((docName, apiDesc) => docName switch
+    {
+        "ai-patient-tools-v1" => apiDesc.GroupName == "ai-patient-tools-v1",
+        "ai-hospital-tools-v1" => apiDesc.GroupName == "ai-hospital-tools-v1",
+        "ai-rehab-tools-v1" => apiDesc.GroupName == "ai-rehab-tools-v1",
+        _ => apiDesc.GroupName is not (
+            "ai-patient-tools-v1" or "ai-hospital-tools-v1" or
+            "ai-rehab-tools-v1")
+    });
     options.CustomOperationIds(apiDesc =>
         apiDesc.ActionDescriptor.AttributeRouteInfo?.Name);
 });
+builder.Services.AddSwaggerGenNewtonsoftSupport();
 
-// 添加 CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", policy =>
     {
         policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+            .AllowAnyMethod()
+            .AllowAnyHeader();
     });
 });
 
@@ -86,48 +129,90 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-
     app.UseSwaggerUI(options =>
-    {   
+    {
         options.SwaggerEndpoint(
-        "/swagger/v1/swagger.json",
-        "AI_WebApi v1");
-
+            "/swagger/v1/swagger.json",
+            "AI_WebApi v1");
         options.SwaggerEndpoint(
-        "/swagger/ai-patient-tools-v1/swagger.json",
-        "AI Patient Tools v1");
+            "/swagger/ai-patient-tools-v1/swagger.json",
+            "AI Patient Tools v1");
+        options.SwaggerEndpoint(
+            "/swagger/ai-hospital-tools-v1/swagger.json",
+            "AI Hospital Operations Tools v1");
+        options.SwaggerEndpoint(
+            "/swagger/ai-rehab-tools-v1/swagger.json",
+            "AI Rehab Tools v1");
     });
 }
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseCors("CorsPolicy");
-
 app.UseAuthorization();
 
+app.MapGet("/irego-tools", () => Results.Redirect("/irego-tools/index.html"))
+    .ExcludeFromDescription();
+
 app.MapGet(
-    "/api/ai/patients/tools/openapi.json",
-    (ISwaggerProvider swaggerProvider, HttpRequest request) =>
-    {
-        var document = swaggerProvider.GetSwagger(
-            "ai-patient-tools-v1");
-
-        document.Servers = new List<OpenApiServer>
+        "/api/ai/patients/tools/openapi.json",
+        (ISwaggerProvider swaggerProvider, HttpRequest request) =>
         {
-            new()
+            var document = swaggerProvider.GetSwagger("ai-patient-tools-v1");
+            document.Servers = new List<OpenApiServer>
             {
-                Url = $"{request.Scheme}://{request.Host.Value}"
-            }
-        };
+                new() { Url = $"{request.Scheme}://{request.Host.Value}" }
+            };
 
-        using var stringWriter = new StringWriter();
-        var writer = new OpenApiJsonWriter(stringWriter);
-        document.SerializeAsV3(writer);
+            using var stringWriter = new StringWriter();
+            var writer = new OpenApiJsonWriter(stringWriter);
+            document.SerializeAsV3(writer);
+            return Results.Text(
+                stringWriter.ToString(),
+                "application/json; charset=utf-8");
+        })
+    .ExcludeFromDescription();
 
-        return Results.Text(
-            stringWriter.ToString(),
-            "application/json; charset=utf-8");
-    })
+app.MapGet(
+        "/api/ai/rehab/tools/openapi.json",
+        (ISwaggerProvider swaggerProvider, HttpRequest request) =>
+        {
+            var document = swaggerProvider.GetSwagger("ai-rehab-tools-v1");
+            document.Servers = new List<OpenApiServer>
+            {
+                new() { Url = $"{request.Scheme}://{request.Host.Value}" }
+            };
+            using var stringWriter = new StringWriter();
+            var writer = new OpenApiJsonWriter(stringWriter);
+            document.SerializeAsV3(writer);
+            return Results.Text(
+                stringWriter.ToString(),
+                "application/json; charset=utf-8");
+        })
+    .ExcludeFromDescription();
+
+app.MapGet(
+        "/api/ai/hospital-operations/tools/openapi.json",
+        (ISwaggerProvider swaggerProvider, HttpRequest request) =>
+        {
+            var document = swaggerProvider.GetSwagger("ai-hospital-tools-v1");
+            document.Servers = new List<OpenApiServer>
+            {
+                new() { Url = $"{request.Scheme}://{request.Host.Value}" }
+            };
+
+            using var stringWriter = new StringWriter();
+            var writer = new OpenApiJsonWriter(stringWriter);
+            document.SerializeAsV3(writer);
+            return Results.Text(
+                stringWriter.ToString(),
+                "application/json; charset=utf-8");
+        })
     .ExcludeFromDescription();
 
 app.MapControllers();
-
 app.Run();
+
+public partial class Program
+{
+}

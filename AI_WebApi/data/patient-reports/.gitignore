@@ -1,0 +1,4 @@
+# Runtime patient report images are stored here in local non-container runs.
+# Keep the dedicated directory, but never commit generated patient reports.
+*
+!.gitignore

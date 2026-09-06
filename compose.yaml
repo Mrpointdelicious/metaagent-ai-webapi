@@ -1,15 +1,33 @@
 services:
-  ai-webapi:
-    container_name: ai-webapi
-    image: ai-webapi:0.1.0
+  ai_webapi:
+    container_name: ai_webapi
+    image: ai_webapi:local
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "5043:8080"
+    env_file:
+      - .env.ai_webapi
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Production
       TZ: Asia/Shanghai
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    volumes:
+      - ai_webapi_report_artifacts:/app/data/patient-reports
+      - ai_webapi_hospital_report_artifacts:/app/data/hospital-operation-reports
+    networks:
+      - mysql_net
+
+networks:
+  mysql_net:
+    external: true
+    name: mysql_default
+
+volumes:
+  ai_webapi_report_artifacts:
+    external: true
+    name: ai_webapi_report_artifacts
+  ai_webapi_hospital_report_artifacts:
+    external: true
+    name: ai_webapi_hospital_report_artifacts
