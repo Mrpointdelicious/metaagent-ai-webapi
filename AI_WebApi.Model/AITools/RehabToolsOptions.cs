@@ -26,4 +26,11 @@ public sealed class SceneNavigationOptions
     public string ApiKey { get; set; } = string.Empty;
     public string ApiToken { get; set; } = string.Empty;
     public int RequestTimeoutSeconds { get; set; } = 15;
+    public SceneCommandResolverOptions Resolver { get; set; } = new();
+}
+
+public sealed class SceneCommandResolverOptions
+{
+    public decimal MinimumScore { get; set; } = .75m;
+    public decimal MinimumMargin { get; set; } = .05m;
 }

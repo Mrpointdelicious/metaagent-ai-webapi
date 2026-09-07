@@ -72,6 +72,7 @@ public sealed class AiRehabToolsController : ControllerBase
         }
     }
 
+    /// <summary>按原文顺序返回场景指令；每条独立标记 matched、ambiguous 或 unmatched。</summary>
     [HttpPost("navigate_scene", Name = "navigate_scene")]
     [ProducesResponseType(typeof(ApiResponse<SceneOperationToolResponseDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse<SceneOperationToolResponseDto>), 400)]

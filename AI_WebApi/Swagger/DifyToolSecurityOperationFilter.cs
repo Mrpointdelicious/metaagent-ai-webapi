@@ -40,10 +40,13 @@ public sealed class DifyToolSecurityOperationFilter : IOperationFilter
         }
         else if (operation.OperationId == "navigate_scene")
         {
-            operation.Summary = "将自然语言场景指令解析为元宇宙点位指令";
+            operation.Summary = "将自然语言解析为有序的元宇宙场景指令列表";
             operation.Description =
-                "target 使用用户原始指令；space_id 为空时使用服务端默认空间。" +
-                "服务端根据当前空间版本读取点位并匹配，不允许 Agent 编造点位编号。";
+                "target 使用用户原始指令；spaceId 为空时使用服务端默认空间。" +
+                "服务端读取当前空间版本的完整目录，返回 data.spaceId、version 和有序 commands。" +
+                "每条状态为 matched、ambiguous 或 unmatched；部分失败仍保留其他结果。" +
+                "仅可按顺序执行 matched 的 result，歧义候选不包含可执行指令。" +
+                "所有编号来自本次真实目录，不允许 Agent 编造。";
         }
 
         if (operation.OperationId == "resolve_patient_identity")

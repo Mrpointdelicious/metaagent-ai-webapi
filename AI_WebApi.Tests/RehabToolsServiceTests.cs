@@ -83,10 +83,14 @@ public sealed class RehabToolsServiceTests
 
         var result = await service.NavigateAsync("带我去康复大厅", "space-7");
 
-        Assert.Equal("[Telepor:]5", result.Result);
-        Assert.Equal("telepor", result.IntentType);
-        Assert.Equal("康复大厅", result.MatchName);
-        Assert.True(result.Score > 0);
+        var command = Assert.Single(result.Commands);
+        Assert.Equal("space-7", result.SpaceId);
+        Assert.Equal(321, result.Version);
+        Assert.Equal("matched", command.Status);
+        Assert.Equal("[Telepor:]5", command.Result);
+        Assert.Equal("telepor", command.IntentType);
+        Assert.Equal("康复大厅", command.MatchName);
+        Assert.True(command.Score > 0);
         Assert.Equal(4, queryCalls);
     }
 

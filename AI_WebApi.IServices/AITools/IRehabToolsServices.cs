@@ -11,6 +11,7 @@ public interface IDoctorToolsService
 
 public interface ISceneNavigationService
 {
+    /// <summary>Resolves ordered command spans against one complete current-space catalog.</summary>
     Task<SceneOperationToolResponseDto> NavigateAsync(
         string target,
         string? spaceId,
