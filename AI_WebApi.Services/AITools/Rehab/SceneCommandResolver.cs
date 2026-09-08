@@ -6,6 +6,10 @@ namespace AI_WebApi.Services.AITools.Rehab;
 
 internal sealed class SceneCommandResolver
 {
+    // 楼层匹配方案
+    private static readonly Regex FloorLobbyTarget = new(
+    @"^(?<floor>(?:[一二三四五六七八九十百]+|\d+)楼)大厅$",
+    RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex Separators = new(
         "[,，;；。.!！?？、]+|接下来|然后|接着|并且|同时|还有|以及|之后|最后|再次|再|并|和",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -276,9 +280,24 @@ internal sealed class SceneCommandResolver
         if (expression == known.CanonicalName) return new RankedCommand(command, 2, .98m);
         if (user.Action == null) return null;
         if (user.Target == known.Target)
-            return known.Action != null && user.ActionFirst == known.ActionFirst
-                ? new RankedCommand(command, 2, .98m)
-                : new RankedCommand(command, 3, .96m);
+        return known.Action != null && user.ActionFirst == known.ActionFirst
+            ? new RankedCommand(command, 2, .98m)
+            : new RankedCommand(command, 3, .96m);
+
+        // Destination-only legacy compatibility:
+        // “X楼大厅”与目录中的“X楼”视为同一个楼层默认传送点。
+        //
+        // 仅适用于 telepor / scene_point / game_point。
+        // click_point 不使用此规则，避免“地图说明书 -> 地图”之类误执行。
+        if (command.IsDestination &&
+            IsFloorLobbyAlias(user.Target, known.Target))
+        {
+            return new RankedCommand(command, 4, .90m);
+        }
+
+if (user.Target.Length == 0 || known.Target.Length == 0) return null;
+
+if (user.Target.Length == 0 || known.Target.Length == 0) return null;
         if (user.Target.Length == 0 || known.Target.Length == 0) return null;
 
         // Only omission from a catalog target is allowed. Extra user qualifiers must not
@@ -301,6 +320,23 @@ internal sealed class SceneCommandResolver
                 return new RankedCommand(command, 5, .70m + .08m * pinyinCoverage);
         }
         return null;
+    }
+
+    private static bool IsFloorLobbyAlias(
+    string userTarget,
+    string knownTarget)
+    {
+    var match = FloorLobbyTarget.Match(userTarget);
+
+    if (!match.Success)
+        return false;
+
+    var floor = match.Groups["floor"].Value;
+
+    return string.Equals(
+        floor,
+        knownTarget,
+        StringComparison.Ordinal);
     }
 
     private static bool IsSubsequence(string shorter, string longer)
