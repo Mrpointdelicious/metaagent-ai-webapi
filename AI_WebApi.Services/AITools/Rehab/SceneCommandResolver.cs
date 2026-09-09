@@ -6,10 +6,9 @@ namespace AI_WebApi.Services.AITools.Rehab;
 
 internal sealed class SceneCommandResolver
 {
-    // 楼层匹配方案
-    private static readonly Regex FloorLobbyTarget = new(
-    @"^(?<floor>(?:[一二三四五六七八九十百]+|\d+)楼)大厅$",
-    RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex FloorTarget = new(
+        @"^(?<floor>(?:[一二三四五六七八九十]|\d+))楼(?:大厅)?$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex Separators = new(
         "[,，;；。.!！?？、]+|接下来|然后|接着|并且|同时|还有|以及|之后|最后|再次|再|并|和",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -30,7 +29,7 @@ internal sealed class SceneCommandResolver
         string input, IReadOnlyList<SceneCommandCatalogEntry> catalog, CancellationToken cancellationToken)
     {
         var source = new SceneSourceText(input);
-        var targets = Occurrences(source.Text, catalog.Select(item => item.Signature.Target), cancellationToken);
+        var targets = Occurrences(source.Text, catalog.Select(item => item.EffectiveSignature.Target), cancellationToken);
         var names = Occurrences(source.Text, catalog.Select(item => item.Signature.CanonicalName), cancellationToken);
         var protectedRanges = targets.Concat(names).ToArray();
         var output = new List<SceneCommandResultDto>();
@@ -52,7 +51,10 @@ internal sealed class SceneCommandResolver
 
             var whole = Match(text, catalog);
             // A complete catalog command is indivisible, even if its name contains verbs/connectors.
-            if (whole.Level <= 2)
+            var wholeSignature = SceneCommandNormalizer.Signature(text);
+            var isFloorRequest = wholeSignature.Action is "navigate" or "enter" or "return" &&
+                                 TryParseFloor(wholeSignature.Target, out _);
+            if (whole.Level <= 2 || isFloorRequest)
             {
                 whole.Result.SourceText = source.Slice(clause.Start, clause.End);
                 output.Add(whole.Result);
@@ -164,7 +166,7 @@ internal sealed class SceneCommandResolver
                              (signature.Target.Length > 0 || match.Level <= 2) ? 1 : 0;
                 var candidate = new PartitionPath(
                     previous.Formed + formed,
-                    previous.Evidence + (match.Level <= 5 ? 6 - match.Level : 0),
+                    previous.Evidence + (match.Level <= 6 ? 7 - match.Level : 0),
                     previous.Score + match.BestScore,
                     previous.Spans.Append(new TextRange(start, cut)).ToArray());
                 if (!next.TryGetValue(cut, out var current) || candidate.CompareTo(current) > 0)
@@ -219,6 +221,7 @@ internal sealed class SceneCommandResolver
         var signature = SceneCommandNormalizer.Signature(text);
         var pinyin = new Lazy<string>(() => SceneCommandNormalizer.TargetPinyin(signature.Target));
         var candidates = catalog.Select(item => Rank(expression, signature, pinyin, item))
+            .Append(FloorLanding(signature, catalog))
             .Where(item => item != null).Cast<RankedCommand>()
             .OrderBy(item => item.Level).ThenByDescending(item => item.Score)
             .ThenBy(item => item.Command.Name, StringComparer.Ordinal)
@@ -226,7 +229,8 @@ internal sealed class SceneCommandResolver
         if (candidates.Length == 0)
         {
             var missingAction = signature.Action == null
-                ? catalog.Where(item => item.Signature.Action != null && item.Signature.Target == signature.Target)
+                ? catalog.Where(item => item.EffectiveSignature.Action != null &&
+                                        item.EffectiveSignature.Target == signature.Target)
                     .Select(item => new SceneCommandCandidateDto
                     {
                         Name = item.Name, IntentType = item.IntentType, Score = .96m
@@ -237,7 +241,7 @@ internal sealed class SceneCommandResolver
                 Status = missingAction.Length > 1 ? "ambiguous" : "unmatched",
                 Message = missingAction.Length > 0 ? "请明确要执行的动作" : "未匹配到当前空间指令",
                 Candidates = missingAction
-            }, 6, 0);
+            }, 7, 0);
         }
 
         var best = candidates[0];
@@ -271,33 +275,21 @@ internal sealed class SceneCommandResolver
     private static RankedCommand? Rank(
         string expression, CommandSignature user, Lazy<string> pinyin, SceneCommandCatalogEntry command)
     {
-        var known = command.Signature;
-        // An explicit action is a constraint, not a score adjustment.
-        if (user.Action != known.Action && !(known.Action == null && command.IsDestination &&
-            user.Action is "navigate" or "enter" or "return")) return null;
+        var known = command.EffectiveSignature;
+        if (!IsActionCompatible(user, known, command)) return null;
 
         if (user.CanonicalName == known.CanonicalName) return new RankedCommand(command, 1, 1m);
         if (expression == known.CanonicalName) return new RankedCommand(command, 2, .98m);
         if (user.Action == null) return null;
         if (user.Target == known.Target)
-        return known.Action != null && user.ActionFirst == known.ActionFirst
-            ? new RankedCommand(command, 2, .98m)
-            : new RankedCommand(command, 3, .96m);
+            return command.Signature.Action != null && user.ActionFirst == known.ActionFirst
+                ? new RankedCommand(command, 2, .98m)
+                : new RankedCommand(command, 3, .96m);
 
-        // Destination-only legacy compatibility:
-        // “X楼大厅”与目录中的“X楼”视为同一个楼层默认传送点。
-        //
-        // 仅适用于 telepor / scene_point / game_point。
-        // click_point 不使用此规则，避免“地图说明书 -> 地图”之类误执行。
-        if (command.IsDestination &&
-            IsFloorLobbyAlias(user.Target, known.Target))
-        {
-            return new RankedCommand(command, 4, .90m);
-        }
+        // A valid floor request may resolve through an exact catalog command or the dedicated
+        // ScenePoint landing rule. It never falls through to generic partial or pinyin matching.
+        if (TryParseFloor(user.Target, out _)) return null;
 
-if (user.Target.Length == 0 || known.Target.Length == 0) return null;
-
-if (user.Target.Length == 0 || known.Target.Length == 0) return null;
         if (user.Target.Length == 0 || known.Target.Length == 0) return null;
 
         // Only omission from a catalog target is allowed. Extra user qualifiers must not
@@ -307,37 +299,85 @@ if (user.Target.Length == 0 || known.Target.Length == 0) return null;
             (known.Target.Contains(user.Target, StringComparison.Ordinal) ||
              user.Target.Length >= 4 && known.Target.StartsWith(user.Target[..2], StringComparison.Ordinal) &&
              known.Target.EndsWith(user.Target[^2..], StringComparison.Ordinal) && IsSubsequence(user.Target, known.Target)))
-            return new RankedCommand(command, 4, .82m + .10m * coverage);
+            return new RankedCommand(command, 5, .82m + .10m * coverage);
 
         var left = pinyin.Value;
         var right = command.TargetPinyin;
-        if (left.Length >= 3 && left == right) return new RankedCommand(command, 5, .78m);
+        if (left.Length >= 3 && left == right) return new RankedCommand(command, 6, .78m);
         if (left.Length >= 6 && right.Length > left.Length &&
             right.Contains(left, StringComparison.Ordinal))
         {
             var pinyinCoverage = (decimal)left.Length / right.Length;
             if (pinyinCoverage >= .75m)
-                return new RankedCommand(command, 5, .70m + .08m * pinyinCoverage);
+                return new RankedCommand(command, 6, .70m + .08m * pinyinCoverage);
         }
         return null;
     }
 
-    private static bool IsFloorLobbyAlias(
-    string userTarget,
-    string knownTarget)
+    private static bool IsActionCompatible(CommandSignature user, CommandSignature known,
+        SceneCommandCatalogEntry command)
     {
-    var match = FloorLobbyTarget.Match(userTarget);
-
-    if (!match.Success)
+        // The original canonical ClickPoint name remains executable after an implicit-open
+        // semantic is inferred, while an explicit user action must obey that semantic.
+        if (command.IsClickPoint && command.Signature.Action == null && user.Action == null &&
+            user.Target == command.Signature.Target) return true;
+        if (known.Action != null) return user.Action == known.Action;
+        if (user.Action == null)
+            return !command.IsScenePoint || TryParseFloor(user.Target, out _) == false;
+        if (command.IsTeleport || command.IsScenePoint)
+            return user.Action is "navigate" or "enter" or "return";
+        if (command.IsGamePoint)
+            return user.Action is "navigate" or "enter" or "start" or "play";
         return false;
-
-    var floor = match.Groups["floor"].Value;
-
-    return string.Equals(
-        floor,
-        knownTarget,
-        StringComparison.Ordinal);
     }
+
+    private static RankedCommand? FloorLanding(CommandSignature user,
+        IReadOnlyList<SceneCommandCatalogEntry> catalog)
+    {
+        if (user.Action is not ("navigate" or "enter" or "return") ||
+            !TryParseFloor(user.Target, out var floor)) return null;
+
+        return catalog.Where(command => command.IsScenePoint &&
+                TryGetLeadingFloor(command.EffectiveSignature.Target, out var commandFloor) &&
+                commandFloor == floor)
+            .OrderBy(command => ParseCommandId(command.Id))
+            .ThenBy(command => command.Id, StringComparer.Ordinal)
+            .Select(command => IsActionCompatible(user, command.EffectiveSignature, command)
+                ? new RankedCommand(command, 4, .90m)
+                : null)
+            .FirstOrDefault();
+    }
+
+    private static bool TryParseFloor(string target, out int floor)
+    {
+        floor = 0;
+        var match = FloorTarget.Match(target);
+        return match.Success && TryParseFloorNumber(match.Groups["floor"].Value, out floor);
+    }
+
+    private static bool TryGetLeadingFloor(string target, out int floor)
+    {
+        floor = 0;
+        var floorIndex = target.IndexOf('楼');
+        return floorIndex > 0 && TryParseFloorNumber(target[..floorIndex], out floor);
+    }
+
+    private static bool TryParseFloorNumber(string value, out int floor)
+    {
+        if (int.TryParse(value, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out floor))
+            return floor is >= 1 and <= 10;
+        floor = value switch
+        {
+            "一" => 1, "二" => 2, "三" => 3, "四" => 4, "五" => 5,
+            "六" => 6, "七" => 7, "八" => 8, "九" => 9, "十" => 10,
+            _ => 0
+        };
+        return floor != 0;
+    }
+
+    private static long ParseCommandId(string id) =>
+        long.TryParse(id, out var value) ? value : long.MaxValue;
 
     private static bool IsSubsequence(string shorter, string longer)
     {

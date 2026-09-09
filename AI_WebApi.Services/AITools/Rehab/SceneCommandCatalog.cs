@@ -9,8 +9,13 @@ internal sealed record SceneCommandCatalogEntry(
     string Prefix, string Id, string Name, string Intro, string IntentType)
 {
     public CommandSignature Signature { get; } = SceneCommandNormalizer.Signature(Name);
+    public CommandSignature EffectiveSignature { get; init; } = SceneCommandNormalizer.Signature(Name);
     private string? _targetPinyin;
-    public string TargetPinyin => _targetPinyin ??= SceneCommandNormalizer.TargetPinyin(Signature.Target);
+    public string TargetPinyin => _targetPinyin ??= SceneCommandNormalizer.TargetPinyin(EffectiveSignature.Target);
+    public bool IsTeleport => IntentType == "telepor";
+    public bool IsScenePoint => IntentType == "scene_point";
+    public bool IsClickPoint => IntentType == "click_point";
+    public bool IsGamePoint => IntentType == "game_point";
     public bool IsDestination => IntentType is "telepor" or "scene_point" or "game_point";
 }
 
@@ -100,7 +105,25 @@ internal sealed class SceneCommandCatalog
                 throw new InvalidOperationException("Scene catalog contains conflicting command IDs.");
             unique.Add(first);
         }
-        return new SceneCommandCatalogSnapshot(resolvedSpaceId, version, unique);
+        return new SceneCommandCatalogSnapshot(resolvedSpaceId, version, ApplySemantics(unique));
+    }
+
+    private static IReadOnlyList<SceneCommandCatalogEntry> ApplySemantics(
+        IReadOnlyList<SceneCommandCatalogEntry> commands)
+    {
+        var closingClickPoints = commands.Where(command => command.IsClickPoint &&
+                command.Signature.Action == "close" && command.Signature.ActionFirst)
+            .Select(command => (command.Signature.Target, command.Signature.CanonicalName))
+            .ToHashSet();
+
+        return commands.Select(command => command.IsClickPoint && command.Signature.Action == null &&
+                closingClickPoints.Contains((command.Signature.Target,
+                    SceneCommandNormalizer.Compact("关闭" + command.Name)))
+            ? command with
+            {
+                EffectiveSignature = command.Signature with { Action = "open" }
+            }
+            : command).ToArray();
     }
 
     private async Task<JsonDocument> PostAsync(

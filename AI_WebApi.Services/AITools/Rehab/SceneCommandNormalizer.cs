@@ -16,6 +16,9 @@ internal static class SceneCommandNormalizer
     {
         ("打开", "open"), ("点开", "open"), ("开启", "open"),
         ("关闭", "close"), ("关掉", "close"), ("关上", "close"),
+        ("传送到", "navigate"), ("传送至", "navigate"),
+        ("跳转到", "navigate"), ("跳转至", "navigate"),
+        ("切换到", "navigate"), ("切换至", "navigate"),
         ("前往", "navigate"), ("去", "navigate"),
         ("进入", "enter"), ("进去", "enter"),
         ("退出", "exit"), ("离开", "exit"), ("出去", "exit"),

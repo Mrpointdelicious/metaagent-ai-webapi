@@ -290,6 +290,244 @@ public sealed class SceneCommandResolverTests
     }
 
     [Theory]
+    [InlineData("去岳阳医院", 4)]
+    [InlineData("带我去同济医院", 5)]
+    [InlineData("传送到岳阳医院", 4)]
+    [InlineData("传送至岳阳医院", 4)]
+    [InlineData("跳转到社交岛", 0)]
+    [InlineData("跳转至社交岛", 0)]
+    [InlineData("切换到会议中心", 1)]
+    [InlineData("切换至会议中心", 1)]
+    [InlineData("进入岳阳医院", 4)]
+    [InlineData("返回同济医院", 5)]
+    public async Task Teleport_accepts_explicit_movement_actions(string input, int id)
+    {
+        using var fixture = TeleportCatalog();
+        var command = Assert.Single((await fixture.Service.NavigateAsync(input, null)).Commands);
+        Assert.Equal("matched", command.Status);
+        Assert.Equal($"[Telepor:]{id}", command.Result);
+        Assert.Equal("telepor", command.IntentType);
+    }
+
+    [Fact]
+    public async Task A_floor_request_never_selects_a_teleport()
+    {
+        using var fixture = TeleportCatalog(new Row(0, 20, "五楼乐园"));
+        AssertNotExecutable(Assert.Single((await fixture.Service.NavigateAsync("去五楼", null)).Commands), "unmatched");
+    }
+
+    [Theory]
+    [InlineData("去一楼", 0, "一楼接待大厅", .90)]
+    [InlineData("带我去二楼", 5, "二楼", .96)]
+    [InlineData("前往三楼", 14, "三楼训练区", .90)]
+    [InlineData("去四楼", 23, "四楼评估室", .90)]
+    [InlineData("带我去五楼", 32, "五楼直播区", .90)]
+    [InlineData("前往5楼", 32, "五楼直播区", .90)]
+    [InlineData("去三楼大厅", 14, "三楼训练区", .90)]
+    [InlineData("带我去五楼大厅", 32, "五楼直播区", .90)]
+    [InlineData("前往5楼大厅", 32, "五楼直播区", .90)]
+    public async Task Bare_floor_navigation_uses_the_lowest_scene_point_id(
+        string input, int id, string matchName, double score)
+    {
+        using var fixture = ScenePointCatalog();
+        var command = Assert.Single((await fixture.Service.NavigateAsync(input, null)).Commands);
+        Assert.Equal("matched", command.Status);
+        Assert.Equal($"[ScenePoint:]{id}", command.Result);
+        Assert.Equal(matchName, command.MatchName);
+        Assert.Equal((decimal)score, command.Score);
+    }
+
+    [Fact]
+    public async Task Floor_landing_recognizes_chinese_and_arabic_numbers_from_one_through_ten()
+    {
+        var chinese = new[] { "一", "二", "三", "四", "五", "六", "七", "八", "九", "十" };
+        using var fixture = new CatalogFixture(chinese.Select((number, index) =>
+            new Row(1, 100 + index, $"{number}楼默认点")).ToArray());
+
+        for (var index = 0; index < chinese.Length; index++)
+        {
+            var chineseCommand = Assert.Single(
+                (await fixture.Service.NavigateAsync($"去{chinese[index]}楼", null)).Commands);
+            var arabicCommand = Assert.Single(
+                (await fixture.Service.NavigateAsync($"去{index + 1}楼", null)).Commands);
+            Assert.Equal($"[ScenePoint:]{100 + index}", chineseCommand.Result);
+            Assert.Equal($"[ScenePoint:]{100 + index}", arabicCommand.Result);
+        }
+    }
+
+    [Fact]
+    public async Task Floor_landing_uses_numeric_id_order_instead_of_catalog_order()
+    {
+        using var fixture = new CatalogFixture(
+            new Row(1, 100, "六楼大厅入口"), new Row(1, 20, "六楼休息区"), new Row(1, 3, "六楼训练区"));
+        var command = Assert.Single((await fixture.Service.NavigateAsync("去6楼", null)).Commands);
+        Assert.Equal("[ScenePoint:]3", command.Result);
+        Assert.Equal("六楼训练区", command.MatchName);
+    }
+
+    [Fact]
+    public async Task Exact_scene_point_outranks_floor_landing()
+    {
+        using var fixture = ScenePointCatalog(new Row(1, 99, "五楼大厅"));
+        var exact = Assert.Single((await fixture.Service.NavigateAsync("去五楼大厅", null)).Commands);
+        var ordinary = Assert.Single((await fixture.Service.NavigateAsync("去五楼左侧休息区", null)).Commands);
+        Assert.Equal("[ScenePoint:]99", exact.Result);
+        Assert.Equal(.96m, exact.Score);
+        Assert.Equal("[ScenePoint:]33", ordinary.Result);
+        Assert.Equal(.96m, ordinary.Score);
+    }
+
+    [Theory]
+    [InlineData("去五楼训练室")]
+    [InlineData("去四楼直播区")]
+    [InlineData("去三楼评估大厅")]
+    [InlineData("打开五楼")]
+    [InlineData("五楼")]
+    [InlineData("二楼")]
+    public async Task Floor_landing_requires_an_explicit_move_and_a_strict_floor_target(string input)
+    {
+        using var fixture = ScenePointCatalog();
+        AssertNotExecutable(Assert.Single((await fixture.Service.NavigateAsync(input, null)).Commands), "unmatched");
+    }
+
+    [Theory]
+    [InlineData("去二五楼")]
+    [InlineData("去十十楼")]
+    public async Task Invalid_chinese_floor_numbers_do_not_coerce_to_a_real_floor(string input)
+    {
+        using var fixture = ScenePointCatalog(new Row(1, 80, "二十楼接待区"));
+        AssertNotExecutable(Assert.Single((await fixture.Service.NavigateAsync(input, null)).Commands), "unmatched");
+    }
+
+    [Fact]
+    public async Task Floor_landing_only_uses_scene_points()
+    {
+        using var fixture = new CatalogFixture(
+            new Row(0, 1, "七楼大厅"), new Row(2, 2, "七楼休息区"), new Row(3, 3, "七楼游戏区"));
+        AssertNotExecutable(Assert.Single((await fixture.Service.NavigateAsync("去七楼", null)).Commands), "unmatched");
+    }
+
+    [Fact]
+    public async Task Floor_lobby_alias_is_kept_as_one_command_despite_other_catalog_spans()
+    {
+        using var fixture = new CatalogFixture(new Row(1, 5, "二楼"), new Row(0, 88, "大厅"));
+        var command = Assert.Single((await fixture.Service.NavigateAsync("去二楼大厅", null)).Commands);
+        Assert.Equal("去二楼大厅", command.SourceText);
+        Assert.Equal("[ScenePoint:]5", command.Result);
+        Assert.Equal(.90m, command.Score);
+    }
+
+    [Fact]
+    public async Task Floor_lobby_text_is_not_split_when_only_teleports_cover_its_parts()
+    {
+        using var fixture = new CatalogFixture(new Row(0, 5, "二楼"), new Row(0, 88, "大厅"));
+        var command = Assert.Single((await fixture.Service.NavigateAsync("去二楼大厅", null)).Commands);
+        Assert.Equal("去二楼大厅", command.SourceText);
+        AssertNotExecutable(command, "unmatched");
+    }
+
+    [Fact]
+    public async Task An_explicit_non_scene_floor_command_keeps_exact_priority()
+    {
+        using var fixture = new CatalogFixture(new Row(1, 32, "五楼直播区"), new Row(2, 8, "打开五楼"));
+        var command = Assert.Single((await fixture.Service.NavigateAsync("打开五楼", null)).Commands);
+        Assert.Equal("[ClickPoint:]8", command.Result);
+        Assert.Equal(1m, command.Score);
+    }
+
+    [Fact]
+    public async Task Floor_landing_does_not_skip_an_incompatible_lowest_id()
+    {
+        using var fixture = new CatalogFixture(
+            new Row(1, 1, "退出五楼训练区"), new Row(1, 2, "五楼休息区"));
+        var command = Assert.Single((await fixture.Service.NavigateAsync("去五楼", null)).Commands);
+        AssertNotExecutable(command, "unmatched");
+        Assert.DoesNotContain(command.Candidates, candidate => candidate.Name == "退出五楼训练区");
+    }
+
+    [Theory]
+    [InlineData(.90, "matched")]
+    [InlineData(.91, "unmatched")]
+    public async Task Floor_landing_respects_the_configured_minimum_score(double minimum, string status)
+    {
+        using var fixture = new CatalogFixture(
+            new SceneCommandResolverOptions { MinimumScore = (decimal)minimum }, new Row(1, 32, "五楼直播区"));
+        var command = Assert.Single((await fixture.Service.NavigateAsync("去五楼", null)).Commands);
+        Assert.Equal(status, command.Status);
+        if (status == "matched") Assert.Equal("[ScenePoint:]32", command.Result);
+        else AssertNotExecutable(command, status);
+    }
+
+    [Theory]
+    [InlineData("打开个人中心", 1)]
+    [InlineData("关闭个人中心", 37)]
+    [InlineData("打开设备管理", 5)]
+    [InlineData("关闭设备管理", 42)]
+    [InlineData("打开训练报告", 11)]
+    [InlineData("关闭训练报告", 45)]
+    [InlineData("打开投屏", 6)]
+    [InlineData("关闭投屏", 46)]
+    [InlineData("帮我个人中心", 1)]
+    public async Task Click_point_open_is_inferred_from_a_matching_close_command(string input, int id)
+    {
+        using var fixture = PairedClickPointCatalog();
+        var command = Assert.Single((await fixture.Service.NavigateAsync(input, null)).Commands);
+        Assert.Equal("matched", command.Status);
+        Assert.Equal($"[ClickPoint:]{id}", command.Result);
+        Assert.Equal("click_point", command.IntentType);
+    }
+
+    [Fact]
+    public async Task Implicit_open_is_derived_from_catalog_pairs_without_named_exceptions()
+    {
+        using var fixture = new CatalogFixture(new Row(2, 70, "自定义面板"), new Row(2, 71, "关闭自定义面板"));
+        Assert.Equal("[ClickPoint:]70",
+            Assert.Single((await fixture.Service.NavigateAsync("打开自定义面板", null)).Commands).Result);
+        Assert.Equal("[ClickPoint:]70",
+            Assert.Single((await fixture.Service.NavigateAsync("自定义面板", null)).Commands).Result);
+        Assert.Equal("[ClickPoint:]70",
+            Assert.Single((await fixture.Service.NavigateAsync("帮我自定义面板", null)).Commands).Result);
+    }
+
+    [Theory]
+    [InlineData("AI推荐", 28)]
+    [InlineData("快速测评", 31)]
+    public async Task Unpaired_function_click_points_keep_canonical_behavior(string input, int id)
+    {
+        using var fixture = new CatalogFixture(new Row(2, 28, "AI推荐"), new Row(2, 31, "快速测评"));
+        var command = Assert.Single((await fixture.Service.NavigateAsync(input, null)).Commands);
+        Assert.Equal($"[ClickPoint:]{id}", command.Result);
+        Assert.Equal(1m, command.Score);
+    }
+
+    [Theory]
+    [InlineData("打开AI推荐")]
+    [InlineData("打开快速测评")]
+    public async Task Unpaired_function_click_points_do_not_guess_open(string input)
+    {
+        using var fixture = new CatalogFixture(new Row(2, 28, "AI推荐"), new Row(2, 31, "快速测评"));
+        AssertNotExecutable(Assert.Single((await fixture.Service.NavigateAsync(input, null)).Commands), "unmatched");
+    }
+
+    [Fact]
+    public async Task A_close_command_in_another_protocol_does_not_imply_click_point_open()
+    {
+        using var fixture = new CatalogFixture(new Row(2, 8, "跨类面板"), new Row(0, 9, "关闭跨类面板"));
+        AssertNotExecutable(
+            Assert.Single((await fixture.Service.NavigateAsync("打开跨类面板", null)).Commands), "unmatched");
+    }
+
+    [Fact]
+    public async Task A_close_synonym_does_not_establish_an_implicit_open_pair()
+    {
+        using var fixture = new CatalogFixture(new Row(2, 8, "自定义面板"), new Row(2, 9, "关掉自定义面板"));
+        AssertNotExecutable(
+            Assert.Single((await fixture.Service.NavigateAsync("打开自定义面板", null)).Commands), "unmatched");
+        Assert.Equal("[ClickPoint:]9",
+            Assert.Single((await fixture.Service.NavigateAsync("关掉自定义面板", null)).Commands).Result);
+    }
+
+    [Theory]
     [InlineData("不要打开地图，然后关闭历史对话")]
     [InlineData("如果打开地图，然后关闭历史对话")]
     [InlineData("怎么打开地图，然后关闭历史对话")]
@@ -300,6 +538,35 @@ public sealed class SceneCommandResolverTests
         Assert.Equal(2, commands.Count);
         AssertNotExecutable(commands[0], "unmatched");
         Assert.Equal("[ClickPoint:]14", commands[1].Result);
+    }
+
+    [Fact]
+    public async Task Unsupported_context_applies_to_new_floor_teleport_and_implicit_open_semantics()
+    {
+        using var fixture = new CatalogFixture(
+            new Row(0, 4, "岳阳医院"), new Row(1, 32, "五楼直播区"),
+            new Row(2, 1, "个人中心"), new Row(2, 37, "关闭个人中心"));
+        var commands = (await fixture.Service.NavigateAsync(
+            "不要去五楼，然后传送到岳阳医院，然后不要打开个人中心", null)).Commands;
+        Assert.Equal(new[] { "unmatched", "matched", "unmatched" }, commands.Select(command => command.Status));
+        AssertNotExecutable(commands[0], "unmatched");
+        Assert.Equal("[Telepor:]4", commands[1].Result);
+        AssertNotExecutable(commands[2], "unmatched");
+    }
+
+    [Fact]
+    public async Task Mixed_protocol_commands_preserve_order_and_repetitions()
+    {
+        using var fixture = new CatalogFixture(
+            new Row(0, 4, "岳阳医院"), new Row(1, 32, "五楼直播区"),
+            new Row(2, 1, "个人中心"), new Row(2, 37, "关闭个人中心"));
+        const string input = "去岳阳医院，去五楼，打开个人中心，关闭个人中心，再去岳阳医院";
+        var commands = (await fixture.Service.NavigateAsync(input, null)).Commands;
+        Assert.Equal(new[]
+        {
+            "[Telepor:]4", "[ScenePoint:]32", "[ClickPoint:]1", "[ClickPoint:]37", "[Telepor:]4"
+        }, commands.Select(command => command.Result));
+        AssertSourceOrder(input, commands);
     }
 
     [Fact]
@@ -339,6 +606,30 @@ public sealed class SceneCommandResolverTests
         Assert.All(fixture.Sql.Skip(4), sql => Assert.Contains("version_id = 322", sql));
         Assert.Equal(new[] { "[Telepor:]103", "[ScenePoint:]207", "[ClickPoint:]0", "[GamePoint:]401" },
             first.Commands.Select(command => command.Result));
+    }
+
+    [Fact]
+    public async Task Floor_defaults_and_implicit_open_pairs_are_recomputed_for_each_space_version()
+    {
+        using var fixture = new CatalogFixture { IncrementVersion = true };
+        fixture.QueryResponse = category => category switch
+        {
+            1 => fixture.Spaces.Count == 1
+                ? Json("{\"data\":{\"result\":[{\"id\":32,\"name\":\"五楼直播区\"}]}}")
+                : Json("{\"data\":{\"result\":[{\"id\":132,\"name\":\"五楼新落点\"}]}}"),
+            2 => fixture.Spaces.Count == 1
+                ? Json("{\"data\":{\"result\":[{\"id\":1,\"name\":\"自定义面板\"},{\"id\":2,\"name\":\"关闭自定义面板\"}]}}")
+                : Json("{\"data\":{\"result\":[{\"id\":101,\"name\":\"自定义面板\"}]}}"),
+            _ => null
+        };
+
+        var first = await fixture.Service.NavigateAsync("去五楼，打开自定义面板", "space-old");
+        var second = await fixture.Service.NavigateAsync("去五楼，打开自定义面板", "space-new");
+        Assert.Equal(321, first.Version);
+        Assert.Equal(322, second.Version);
+        Assert.Equal(new[] { "[ScenePoint:]32", "[ClickPoint:]1" }, first.Commands.Select(command => command.Result));
+        Assert.Equal("[ScenePoint:]132", second.Commands[0].Result);
+        AssertNotExecutable(second.Commands[1], "unmatched");
     }
 
     [Theory]
@@ -459,6 +750,28 @@ public sealed class SceneCommandResolverTests
         new Row(0, 5, "康复大厅"), new Row(2, 13, "打开历史对话"), new Row(2, 14, "关闭历史对话"),
         new Row(2, 21, "打开地图"), new Row(2, 22, "关闭地图")
     }.Concat(extra).ToArray());
+
+    private static CatalogFixture TeleportCatalog(params Row[] extra) => new(new[]
+    {
+        new Row(0, 0, "社交岛"), new Row(0, 1, "会议中心"), new Row(0, 4, "岳阳医院"),
+        new Row(0, 5, "同济医院")
+    }.Concat(extra).ToArray());
+
+    private static CatalogFixture ScenePointCatalog(params Row[] extra) => new(new[]
+    {
+        new Row(1, 0, "一楼接待大厅"), new Row(1, 1, "一楼模型"),
+        new Row(1, 5, "二楼"), new Row(1, 6, "二楼问诊1号房间"),
+        new Row(1, 14, "三楼训练区"), new Row(1, 15, "三楼1号训练室"),
+        new Row(1, 23, "四楼评估室"), new Row(1, 24, "四楼1号评估室"),
+        new Row(1, 32, "五楼直播区"), new Row(1, 33, "五楼左侧休息区"),
+        new Row(1, 34, "五楼中侧休息区"), new Row(1, 35, "五楼右侧休息区")
+    }.Concat(extra).ToArray());
+
+    private static CatalogFixture PairedClickPointCatalog() => new(
+        new Row(2, 1, "个人中心"), new Row(2, 37, "关闭个人中心"),
+        new Row(2, 5, "设备管理"), new Row(2, 42, "关闭设备管理"),
+        new Row(2, 11, "训练报告"), new Row(2, 45, "关闭训练报告"),
+        new Row(2, 6, "投屏"), new Row(2, 46, "关闭投屏"));
 
     private sealed record Row(int Category, int Id, string Name);
 
