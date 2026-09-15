@@ -148,7 +148,7 @@ public sealed class MultisourcePatientContextService : IMultisourcePatientContex
         var patientRef = _sessionRefProvider.CreatePatient(
             evaluation.Raw.Patient.BusinessId,
             context.PatientId);
-        var snapshotRef = $"ctx_{Guid.NewGuid():N}";
+        var snapshotRef = $"{IReGoDataVersion.SnapshotPrefix}{Guid.NewGuid():N}";
 
         var data = new MultisourcePatientContextDto
         {

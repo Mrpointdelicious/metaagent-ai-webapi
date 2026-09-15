@@ -14,7 +14,7 @@ namespace AI_WebApi.Services.AITools.IReGo;
 /// </summary>
 public sealed class EphemeralIReGoReportArtifactStore : IIReGoReportArtifactStore
 {
-    private const string TokenVersion = "v1";
+    private const string TokenVersion = IReGoDataVersion.ImageTokenVersion;
     private const int SignatureBytes = 16;
 
     private readonly object _sync = new();
@@ -62,6 +62,11 @@ public sealed class EphemeralIReGoReportArtifactStore : IIReGoReportArtifactStor
 
     public bool TryGet(string artifactRef, out byte[] bytes)
     {
+        if (!IsConfigured || !IsValidArtifactRef(artifactRef))
+        {
+            bytes = Array.Empty<byte>();
+            return false;
+        }
         lock (_sync)
         {
             RemoveExpired(DateTimeOffset.UtcNow);
@@ -79,6 +84,9 @@ public sealed class EphemeralIReGoReportArtifactStore : IIReGoReportArtifactStor
 
     public void Store(string artifactRef, byte[] bytes)
     {
+        EnsureConfigured();
+        if (!IsValidArtifactRef(artifactRef))
+            throw new InvalidOperationException("Invalid IREGO artifact reference.");
         if (bytes.Length == 0 || bytes.Length > _maxImageBytes)
         {
             throw new InvalidOperationException(
@@ -114,8 +122,13 @@ public sealed class EphemeralIReGoReportArtifactStore : IIReGoReportArtifactStor
     public string IssueAccessToken(string artifactRef, DateTimeOffset expiresAt)
     {
         EnsureConfigured();
+        if (!IsValidArtifactRef(artifactRef))
+            throw new InvalidOperationException("Invalid IREGO artifact reference.");
         var payload = string.Join(
             "|",
+            TokenVersion,
+            IReGoDataVersion.Namespace,
+            IReGoDataVersion.Generation,
             artifactRef,
             expiresAt.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture));
         return string.Join(
@@ -161,10 +174,13 @@ public sealed class EphemeralIReGoReportArtifactStore : IIReGoReportArtifactStor
         }
 
         var payloadParts = payload.Split('|');
-        if (payloadParts.Length != 2 ||
-            !IsValidArtifactRef(payloadParts[0]) ||
+        if (payloadParts.Length != 5 ||
+            payloadParts[0] != TokenVersion ||
+            payloadParts[1] != IReGoDataVersion.Namespace ||
+            payloadParts[2] != IReGoDataVersion.Generation ||
+            !IsValidArtifactRef(payloadParts[3]) ||
             !long.TryParse(
-                payloadParts[1],
+                payloadParts[4],
                 NumberStyles.Integer,
                 CultureInfo.InvariantCulture,
                 out var expirySeconds))
@@ -172,24 +188,27 @@ public sealed class EphemeralIReGoReportArtifactStore : IIReGoReportArtifactStor
             return Result(ReportImageAccessStatus.Invalid);
         }
 
-        if (DateTimeOffset.UtcNow >= DateTimeOffset.FromUnixTimeSeconds(expirySeconds))
+        DateTimeOffset expiresAt;
+        try { expiresAt = DateTimeOffset.FromUnixTimeSeconds(expirySeconds); }
+        catch (ArgumentOutOfRangeException) { return Result(ReportImageAccessStatus.Invalid); }
+        if (DateTimeOffset.UtcNow >= expiresAt)
         {
-            return Result(ReportImageAccessStatus.Expired, payloadParts[0]);
+            return Result(ReportImageAccessStatus.Expired, payloadParts[3]);
         }
 
-        return TryGet(payloadParts[0], out var bytes)
+        return TryGet(payloadParts[3], out var bytes)
             ? new ReportImageAccessResult
             {
                 Status = ReportImageAccessStatus.Available,
-                ArtifactRef = payloadParts[0],
+                ArtifactRef = payloadParts[3],
                 Bytes = bytes
             }
-            : Result(ReportImageAccessStatus.Missing, payloadParts[0]);
+            : Result(ReportImageAccessStatus.Missing, payloadParts[3]);
     }
 
     public ReportImageAccessResult ResolveArtifact(string artifactRef)
     {
-        if (!IsValidArtifactRef(artifactRef))
+        if (!IsConfigured || !IsValidArtifactRef(artifactRef))
         {
             return Result(ReportImageAccessStatus.Invalid);
         }

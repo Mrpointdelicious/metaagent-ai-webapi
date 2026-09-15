@@ -45,7 +45,7 @@ public sealed class PatientProfileBriefDto
     public bool Available { get; init; }
     public IReadOnlyDictionary<string, object?> Facts { get; init; } =
         new Dictionary<string, object?>();
-    public string Source { get; init; } = "robotdb_main.users.details";
+    public string Source { get; init; } = "project.dbuser.UserDetails";
 }
 
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]

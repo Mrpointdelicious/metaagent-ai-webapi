@@ -374,7 +374,9 @@ public sealed class IReGoToolsController : ControllerBase
             return BadRequest(Error<IReGoLongitudinalAnalysisDto>(
                 "get_irego_longitudinal_analysis",
                 requestId,
-                IReGoReasonCodes.InvalidRequest));
+                IReGoReasonCodes.InvalidRequest,
+                request?.SessionRefs?.Any(IReGoDataVersion.IsRetiredSession) == true
+                    ? IReGoDataVersion.RetiredSessionMessage : null));
         }
 
         var trusted = _contextResolver.Resolve(HttpContext, request!.SystemContext);
@@ -446,7 +448,9 @@ public sealed class IReGoToolsController : ControllerBase
             return BadRequest(Error<IReGoLongitudinalReportArtifactDto>(
                 "generate_irego_longitudinal_report",
                 requestId,
-                IReGoReasonCodes.InvalidRequest));
+                IReGoReasonCodes.InvalidRequest,
+                request?.SessionRefs?.Any(IReGoDataVersion.IsRetiredSession) == true
+                    ? IReGoDataVersion.RetiredSessionMessage : null));
         }
 
         var trusted = _contextResolver.Resolve(HttpContext, request!.SystemContext);
@@ -499,6 +503,9 @@ public sealed class IReGoToolsController : ControllerBase
         Response.Headers["Pragma"] = "no-cache";
         Response.Headers["X-Content-Type-Options"] = "nosniff";
 
+        if (IReGoDataVersion.IsRetiredImageToken(token))
+            return RetiredReport();
+
         var result = _reportService.ResolveImage(token);
         if (result.Status == ReportImageAccessStatus.Expired &&
             !string.IsNullOrWhiteSpace(result.ArtifactRef))
@@ -527,8 +534,11 @@ public sealed class IReGoToolsController : ControllerBase
     public IActionResult GetIReGoReportArtifact(
         [FromRoute] string artifactRef)
     {
-        Response.Headers["Cache-Control"] = "private, no-cache, max-age=0";
+        Response.Headers["Cache-Control"] = "private, no-store, max-age=0";
         Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+        if (IReGoDataVersion.IsRetiredArtifact(artifactRef))
+            return RetiredReport();
 
         var result = _reportService.ResolveArtifact(artifactRef);
         return result.Status switch
@@ -538,6 +548,13 @@ public sealed class IReGoToolsController : ControllerBase
             _ => NotFound()
         };
     }
+
+    private static ContentResult RetiredReport() => new()
+    {
+        StatusCode = StatusCodes.Status404NotFound,
+        ContentType = "text/plain; charset=utf-8",
+        Content = IReGoDataVersion.RetiredReportMessage
+    };
 
     private ActionResult<ToolResponseDto<T>> MapExpectedFailure<T>(
         ToolResponseDto<T> response)
@@ -682,7 +699,8 @@ public sealed class IReGoToolsController : ControllerBase
     private ToolResponseDto<T> Error<T>(
         string toolName,
         string requestId,
-        string reasonCode) =>
+        string reasonCode,
+        string? patientMessage = null) =>
         ToolResponseDto<T>.Create(
             toolName,
             requestId,
@@ -692,7 +710,8 @@ public sealed class IReGoToolsController : ControllerBase
             new ToolMetaDto
             {
                 SourceCompleteness = _options.SourceCompleteness
-            });
+            },
+            patientMessage);
 
     private string RequestId() =>
         Request.Headers["X-Request-Id"].FirstOrDefault() ??

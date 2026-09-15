@@ -53,7 +53,7 @@ public sealed class IReGoSessionRefProviderTests
             "rf_sensitive_schema");
 
         Assert.Matches(
-            new Regex("^irego_s_v1_[0-9a-f]{32}$", RegexOptions.CultureInvariant),
+            new Regex("^irego_s_v2_[0-9a-f]{32}$", RegexOptions.CultureInvariant),
             sessionRef);
         Assert.DoesNotContain("patient", sessionRef, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("plan", sessionRef, StringComparison.OrdinalIgnoreCase);
@@ -85,7 +85,7 @@ public sealed class IReGoSessionRefProviderTests
                 "rf_schema"));
         Assert.False(
             provider.Matches(
-                "irego_s_v1_not-a-signature",
+                "irego_s_v2_not-a-signature",
                 3,
                 461,
                 1001,
@@ -115,7 +115,7 @@ public sealed class IReGoSessionRefProviderTests
 
         Assert.Equal(first, repeated);
         Assert.Matches(
-            new Regex("^irego_p_v1_[0-9a-f]{32}$", RegexOptions.CultureInvariant),
+            new Regex("^irego_p_v2_[0-9a-f]{32}$", RegexOptions.CultureInvariant),
             first);
         Assert.DoesNotContain("461", first, StringComparison.Ordinal);
         Assert.DoesNotContain("1001", first, StringComparison.Ordinal);

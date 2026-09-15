@@ -606,7 +606,7 @@ public sealed class IReGoLongitudinalAnalysisServiceTests
                     BusinessId = 3,
                     IsDeleted = false
                 },
-                SourceSystem = "robotdb_main",
+                SourceSystem = "project",
                 SourceCompleteness = "authoritative_primary"
             },
             Sessions = sessions,

@@ -5,116 +5,42 @@ using SqlSugar;
 namespace AI_WebApi.Repository.AITools;
 
 /// <summary>
-/// Temporary two-database identity adapter. Remove it after the databases are
-/// merged, while retaining the public service contract used by Dify.
+/// Resolves current project patients. Historical method/DTO names retain the
+/// public contract; no old IDs, name matching or cross-database mapping.
 /// </summary>
-public sealed class PatientIdentityMappingRepository
-    : IPatientIdentityMappingRepository
+public sealed class PatientIdentityMappingRepository : IPatientIdentityMappingRepository
 {
-    public const string ProjectConnectionId = "project_identity_temp";
-    public const string RobotConnectionId = "robotdb_main";
-    public const int PatientUserType = 2;
-
     private readonly SqlSugarScope _db;
 
     public PatientIdentityMappingRepository(IUnitOfWorkManage unitOfWorkManage)
     {
         _db = unitOfWorkManage.GetDbClient() ??
-            throw new InvalidOperationException(
-                "SqlSugarScope is not available.");
+            throw new InvalidOperationException("SqlSugarScope is not available.");
     }
+
+    private ISugarQueryable<PatientEntity> Patients() => _db.Queryable<PatientEntity>()
+        .Where(x => (x.IsDeleted == null || x.IsDeleted == false) &&
+            SqlFunc.Subqueryable<DbRoleUserEntity>().Where(r =>
+                r.UserId == x.Id && r.RoleId == DbRoleUserEntity.PatientRole).Any());
 
     public async Task<IReadOnlyList<int>> FindRobotPatientCandidatesAsync(
-        int projectPatientId,
-        CancellationToken cancellationToken = default)
+        int projectPatientId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
-        var projectDb = _db.GetConnectionScope(ProjectConnectionId);
-        var source = await projectDb.Queryable<PatientEntity>()
-            .Where(x => x.Id == projectPatientId)
-            .Select(x => new PatientIdentitySourceRow
-            {
-                Name = x.Name
-            })
-            .FirstAsync();
-
+        var ids = await Patients().Where(x => x.Id == projectPatientId)
+            .Select(x => x.Id).ToListAsync();
         cancellationToken.ThrowIfCancellationRequested();
-        var patientName = source?.Name?.Trim();
-        if (string.IsNullOrWhiteSpace(patientName))
-        {
-            return Array.Empty<int>();
-        }
-
-        var robotDb = _db.GetConnectionScope(RobotConnectionId);
-        var candidateIds = await robotDb
-            .Queryable<RobotDbMainUserEntity>()
-            .Where(x =>
-                x.Name == patientName &&
-                x.UserType == PatientUserType)
-            .OrderBy(x => x.Id)
-            .Select(x => x.Id)
-            .Take(2)
-            .ToListAsync();
-
-        cancellationToken.ThrowIfCancellationRequested();
-        return candidateIds;
+        return ids;
     }
 
-    public async Task<IReadOnlyList<PatientIdentityMappingCandidate>>
-        FindRobotPatientCandidatesByPhoneAsync(
-            string phone,
-            CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<PatientIdentityMappingCandidate>> FindRobotPatientCandidatesByPhoneAsync(
+        string phone, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
-        var projectDb = _db.GetConnectionScope(ProjectConnectionId);
-        var sources = await projectDb.Queryable<PatientEntity>()
-            .Where(x => x.Phone == phone)
-            .OrderBy(x => x.Id)
-            .Select(x => new PatientIdentitySourceRow
-            {
-                ProjectPatientId = x.Id,
-                Name = x.Name
-            })
-            .Take(2)
-            .ToListAsync();
-
+        if (string.IsNullOrWhiteSpace(phone)) return Array.Empty<PatientIdentityMappingCandidate>();
+        var ids = await Patients().Where(x => x.Phone == phone)
+            .OrderBy(x => x.Id).Select(x => x.Id).Take(2).ToListAsync();
         cancellationToken.ThrowIfCancellationRequested();
-        if (sources.Count != 1)
-        {
-            return Array.Empty<PatientIdentityMappingCandidate>();
-        }
-
-        var source = sources[0];
-        var patientName = source.Name?.Trim();
-        if (string.IsNullOrWhiteSpace(patientName))
-        {
-            return Array.Empty<PatientIdentityMappingCandidate>();
-        }
-
-        var robotDb = _db.GetConnectionScope(RobotConnectionId);
-        var robotPatientIds = await robotDb
-            .Queryable<RobotDbMainUserEntity>()
-            .Where(x =>
-                x.Name == patientName &&
-                x.UserType == PatientUserType)
-            .OrderBy(x => x.Id)
-            .Select(x => x.Id)
-            .Take(2)
-            .ToListAsync();
-
-        cancellationToken.ThrowIfCancellationRequested();
-        return robotPatientIds
-            .Select(x => new PatientIdentityMappingCandidate(
-                source.ProjectPatientId,
-                x))
-            .ToArray();
-    }
-
-    private sealed class PatientIdentitySourceRow
-    {
-        public int ProjectPatientId { get; init; }
-        public string? Name { get; init; }
+        return ids.Select(id => new PatientIdentityMappingCandidate(id, id)).ToArray();
     }
 }

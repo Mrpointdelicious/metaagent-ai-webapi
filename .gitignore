@@ -78,13 +78,32 @@ AgentWorkSpace/
 .codex_tmp
 .codex-tmp
 .codex-temp
-docx_render_rehab_expansion/
-docx_render_check/
 
 # Runtime-generated durable report artifacts
-/AI_WebApi/data/patient-reports/
+/AI_WebApi/data/patient-reports/*
+!/AI_WebApi/data/patient-reports/.gitignore
 /AI_WebApi/data/hospital-operation-reports/
 
 # Local backup archives and generated PDF/image inspection output.
 /AI_WebApi.zip
 /tmp/
+
+# Local publish outputs and deploy bundles (never source files).
+publish/
+dist/
+release/
+.packages/
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+*.pdb
+__pycache__/
+*.pyc
+
+# Machine-specific runtime image overlay; use Dockerfile for deployment.
+/Dockerfile.local
+
+# Live database audit output; keep reusable SQL and design docs.
+/docs/database/*-audit-*.tsv

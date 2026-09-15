@@ -1,7 +1,7 @@
 namespace AI_WebApi.Repository.AITools;
 
 /// <summary>
-/// Temporary read-only bridge between project_cpoy and robotdb.
+/// Current project patient lookup; historical names retain the API contract.
 /// Returns at most two candidate IDs because the caller only needs to
 /// distinguish a unique match from zero or multiple matches.
 /// </summary>

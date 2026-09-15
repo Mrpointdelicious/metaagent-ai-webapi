@@ -150,7 +150,7 @@ public sealed class IReGoLongitudinalReportServiceTests
 
         var first = await service.GenerateAsync(
             Context(), Request(), "https://reports.example.test", "request-1");
-        analysis.SecondSessionRef = "irego_s_v1_replaced";
+        analysis.SecondSessionRef = "irego_s_v2_replaced";
         var second = await service.GenerateAsync(
             Context(), Request(), "https://reports.example.test", "request-2");
 
@@ -193,7 +193,7 @@ public sealed class IReGoLongitudinalReportServiceTests
 
         public decimal MiddlePointAdjustment { get; set; }
         public string Watermark { get; set; } = "test-watermark";
-        public string SecondSessionRef { get; set; } = "irego_s_v1_second";
+        public string SecondSessionRef { get; set; } = "irego_s_v2_second";
 
         public FakeAnalysisService(int completeCount, int validPointCount = 3)
         {
@@ -212,7 +212,7 @@ public sealed class IReGoLongitudinalReportServiceTests
                 ToolStatuses.Success,
                 new IReGoLongitudinalAnalysisDto
                 {
-                    PatientRef = "irego_patient_v1_test",
+                    PatientRef = "irego_patient_v2_test",
                     Window = new IReGoLongitudinalWindowDto
                     {
                         ResolvedReportCount = 2,
@@ -224,7 +224,7 @@ public sealed class IReGoLongitudinalReportServiceTests
                         new IReGoLongitudinalReportPositionDto
                         {
                             Ordinal = 1,
-                            SessionRef = "irego_s_v1_first"
+                            SessionRef = "irego_s_v2_first"
                         },
                         new IReGoLongitudinalReportPositionDto
                         {

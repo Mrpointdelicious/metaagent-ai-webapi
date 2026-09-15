@@ -60,9 +60,9 @@ builder.Services.AddSwaggerGen(options =>
             "面向 Dify 的患者端只读工具。Authorization 由 Dify 工具凭据提供；" +
             "system_context 必须由 Dify 系统/运行时变量注入，不得由 LLM 推断。" +
             "session_ref 只能选择工具已经返回的稳定匿名引用，不得自行编造。" +
-            "唯一患者事实源为 robotdb_main。ReportList 元素统一解释为报告记录分段，" +
-            "临时身份映射只按 project_cpoy 姓名与 robotdb 患者类型解析唯一患者；" +
-            "零命中或多命中均拒绝映射。" +
+            "患者身份统一使用 project.dbuser.Id。ReportList 元素统一解释为报告记录分段，" +
+            "身份查询只接受当前患者ID或手机号，两个返回ID均为新ID；" +
+            "零命中或多命中均拒绝。旧ID、旧会话引用、旧缓存和旧报告链接已停用，不再可用，请重新查询或生成。" +
             "不得表述为多个独立训练项目。报告图片以稳定 artifact_ref 持久化；" +
             "展示地址按需生成，不应写入聊天记录。"
     });

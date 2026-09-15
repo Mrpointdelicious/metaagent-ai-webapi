@@ -84,7 +84,7 @@ public sealed class IReGoSingleSessionReportServiceTests
         var request = new GenerateIReGoSingleSessionReportRequestDto
         {
             SystemContext = new DifySystemContextDto { User = "7" },
-            SessionRef = "irego_s_v1_0123456789abcdef0123456789abcdef"
+            SessionRef = "irego_s_v2_0123456789abcdef0123456789abcdef"
         };
 
         var response = await service.GenerateAsync(
@@ -109,7 +109,7 @@ public sealed class IReGoSingleSessionReportServiceTests
         var request = new GenerateIReGoSingleSessionReportRequestDto
         {
             SystemContext = new DifySystemContextDto { User = "7" },
-            SessionRef = "irego_s_v1_0123456789abcdef0123456789abcdef"
+            SessionRef = "irego_s_v2_0123456789abcdef0123456789abcdef"
         };
 
         var response = await service.GenerateAsync(
@@ -264,7 +264,7 @@ public sealed class IReGoSingleSessionReportServiceTests
     private static GenerateIReGoSingleSessionReportRequestDto Request() => new()
     {
         SystemContext = new DifySystemContextDto { User = "7" },
-        SessionRef = "irego_s_v1_0123456789abcdef0123456789abcdef"
+        SessionRef = "irego_s_v2_0123456789abcdef0123456789abcdef"
     };
 
     private sealed class FakeAnalysisService : IIReGoSessionAnalysisService
@@ -298,7 +298,7 @@ public sealed class IReGoSingleSessionReportServiceTests
                 {
                     Session = new IReGoSessionIdentityDto
                     {
-                        PatientRef = "irego_patient_v1_opaque",
+                        PatientRef = "irego_patient_v2_opaque",
                         SessionRef = request.SessionRef ?? string.Empty
                     },
                     Time = new IReGoSessionTimeDto

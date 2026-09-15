@@ -1,3 +1,4 @@
+using AI_WebApi.Model.AITools;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -6,15 +7,13 @@ namespace AI_WebApi.Services.AITools.IReGo;
 
 /// <summary>
 /// Creates the opaque, deterministic identity of a persisted IREGO report.
-/// Version 2 uses purpose-separated HMAC-SHA256 and a canonical JSON payload.
-/// Version 1 references remain valid for historic chat messages.
+/// Version 3 uses purpose-separated HMAC-SHA256 and the project data generation.
+/// All pre-migration references are retired.
 /// </summary>
 internal static class IReGoArtifactReference
 {
-    private const string Version1Prefix = "irego_img_v1_";
-    private const string Version2Prefix = "irego_img_v2_";
     private const string ArtifactKeyPurpose =
-        "ai-webapi/irego/artifact-ref/v2";
+        "ai-webapi/irego/artifact-ref/v3";
 
     public static string Create(
         byte[] masterKey,
@@ -23,6 +22,11 @@ internal static class IReGoArtifactReference
         string sourceSnapshot,
         string templateVersion)
     {
+        if (patientRef.StartsWith("irego_patient_v1_", StringComparison.Ordinal) ||
+            IReGoDataVersion.IsRetiredSession(trainingScopeRef) ||
+            trainingScopeRef.StartsWith("irego_single_scope_v1_", StringComparison.Ordinal) ||
+            trainingScopeRef.StartsWith("irego_window_scope_v1_", StringComparison.Ordinal))
+            throw new InvalidOperationException(IReGoDataVersion.RetiredReportMessage);
         var payload = CanonicalPayload(
             patientRef,
             trainingScopeRef,
@@ -30,7 +34,7 @@ internal static class IReGoArtifactReference
             templateVersion);
         var artifactKey = Hmac(masterKey, ArtifactKeyPurpose);
         var signature = Hmac(artifactKey, payload);
-        return Version2Prefix +
+        return IReGoDataVersion.ArtifactPrefix +
                Convert.ToHexString(signature).ToLowerInvariant();
     }
 
@@ -41,8 +45,7 @@ internal static class IReGoArtifactReference
             return false;
         }
 
-        return HasHexBody(artifactRef, Version1Prefix, 32) ||
-               HasHexBody(artifactRef, Version2Prefix, 64);
+        return IReGoDataVersion.HasHexBody(artifactRef, IReGoDataVersion.ArtifactPrefix, 64);
     }
 
     private static byte[] CanonicalPayload(
@@ -55,8 +58,9 @@ internal static class IReGoArtifactReference
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
-            writer.WriteString("artifact_schema", "irego-artifact-v2");
-            writer.WriteString("source_namespace", "robotdb_main");
+            writer.WriteString("artifact_schema", IReGoDataVersion.ArtifactSchema);
+            writer.WriteString("source_namespace", IReGoDataVersion.Namespace);
+            writer.WriteString("data_generation", IReGoDataVersion.Generation);
             writer.WriteString("patient_ref", patientRef.Trim());
             writer.WriteString("training_scope_ref", trainingScopeRef.Trim());
             writer.WriteString("source_snapshot", sourceSnapshot.Trim());
@@ -77,11 +81,4 @@ internal static class IReGoArtifactReference
         return hmac.ComputeHash(value);
     }
 
-    private static bool HasHexBody(
-        string artifactRef,
-        string prefix,
-        int hexLength) =>
-        artifactRef.StartsWith(prefix, StringComparison.Ordinal) &&
-        artifactRef.Length == prefix.Length + hexLength &&
-        artifactRef.AsSpan(prefix.Length).ToString().All(Uri.IsHexDigit);
 }

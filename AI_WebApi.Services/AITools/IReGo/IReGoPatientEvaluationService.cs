@@ -204,7 +204,7 @@ public sealed class IReGoPatientEvaluationService : IIReGoPatientEvaluationServi
             DataState = dataState,
             Issues = issues,
             Watermark =
-                $"db:{watermarkTime:yyyyMMddHHmmss}:{strictPlanCount}:{strictReportCount}"
+                $"{IReGoDataVersion.Namespace}:{IReGoDataVersion.Generation}:v2:db:{watermarkTime:yyyyMMddHHmmss}:{strictPlanCount}:{strictReportCount}"
         };
     }
 

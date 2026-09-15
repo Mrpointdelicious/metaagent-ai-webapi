@@ -44,6 +44,12 @@ public sealed class IReGoLongitudinalAnalysisService :
                 IReGoReasonCodes.SessionRefSigningKeyNotConfigured);
         }
 
+        if (request.SessionRefs?.Any(IReGoDataVersion.IsRetiredSession) == true)
+        {
+            return Failure(requestId, IReGoReasonCodes.SessionRefNotFound,
+                string.Empty, IReGoDataVersion.RetiredSessionMessage);
+        }
+
         var evaluation = await _evaluationService.EvaluateAsync(
             context,
             cancellationToken);
@@ -201,14 +207,14 @@ public sealed class IReGoLongitudinalAnalysisService :
                 new IReGoSourceDto
                 {
                     SourceSystem = evaluation.Raw.SourceSystem,
-                    SourceObject = "robotdb_main.rehabplan",
+                    SourceObject = "project.rehabplan",
                     Role = "report_order_plan_and_state",
                     Completeness = evaluation.Raw.SourceCompleteness
                 },
                 new IReGoSourceDto
                 {
                     SourceSystem = evaluation.Raw.SourceSystem,
-                    SourceObject = "robotdb_main.report.details.ReportList",
+                    SourceObject = "project.report.details.ReportList",
                     Role = "same_project_segment_metrics",
                     Completeness = evaluation.Raw.SourceCompleteness
                 }

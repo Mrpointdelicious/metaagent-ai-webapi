@@ -1,3 +1,4 @@
+using AI_WebApi.Model.AITools;
 using AI_WebApi.Model.DTOs.AITools;
 using AI_WebApi.Model.Entities;
 
@@ -11,7 +12,7 @@ public sealed class TrustedPatientContext
     public string TraceId { get; init; } = string.Empty;
 
     public string PatientRef => $"patient:{PatientId}";
-    public string ContextKey => $"{SubjectRef}|{PatientRef}";
+    public string ContextKey => $"{IReGoDataVersion.CacheNamespace}|{SubjectRef}|{PatientRef}";
 }
 
 public sealed class IReGoRawDataSet
@@ -26,7 +27,7 @@ public sealed class IReGoRawDataSet
     public IReadOnlySet<int> ExecutionEvidencePlanIds { get; init; } =
         new HashSet<int>();
     public int ReferenceAnomalyCount { get; init; }
-    public string SourceSystem { get; init; } = "robotdb_main";
+    public string SourceSystem { get; init; } = "project";
     public string SourceCompleteness { get; init; } = "authoritative_primary";
 }
 

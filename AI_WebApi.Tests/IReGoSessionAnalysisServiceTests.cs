@@ -92,7 +92,7 @@ public sealed class IReGoSessionAnalysisServiceTests
     {
         var response = await SessionService(Evaluation(461, 2002)).GetAsync(
             Context(461),
-            ByReferenceRequest("irego_s_v1_invalid"),
+            ByReferenceRequest("irego_s_v2_invalid"),
             "request-1");
 
         Assert.Equal(ToolStatuses.Failed, response.Status);
@@ -253,14 +253,30 @@ public sealed class IReGoSessionAnalysisServiceTests
         Assert.Equal(1, irego.Coverage.VoidedPlanCount);
         Assert.Single(irego.RecentSessions);
         Assert.Equal(1, irego.RecentSessions[0].Ordinal);
-        Assert.StartsWith("irego_s_v1_", irego.RecentSessions[0].SessionRef);
+        Assert.StartsWith("irego_s_v2_", irego.RecentSessions[0].SessionRef);
         Assert.Single(irego.FuturePlans);
         Assert.Equal("not_complete", irego.FuturePlans[0].CompletionFlag);
         Assert.False(string.IsNullOrWhiteSpace(
             irego.FuturePlans[0].PatientMessage));
         Assert.Single(irego.VoidedPlans);
         Assert.Equal("voided", irego.VoidedPlans[0].State);
-        Assert.StartsWith("irego_p_v1_", irego.VoidedPlans[0].PlanRef);
+        Assert.StartsWith("irego_p_v2_", irego.VoidedPlans[0].PlanRef);
+    }
+
+    [Fact]
+    public async Task Current_context_cache_hits_and_force_refresh_rebuilds_snapshot()
+    {
+        var service = ContextService(Evaluation(461, 2002));
+        var first = await service.GetAsync(Context(461), new GetMultisourcePatientContextRequestDto(), "first");
+        var hit = await service.GetAsync(Context(461), new GetMultisourcePatientContextRequestDto(), "second");
+        var refreshed = await service.GetAsync(Context(461),
+            new GetMultisourcePatientContextRequestDto { ForceRefresh = true }, "third");
+        Assert.StartsWith("ctx_v2_", first.Data!.Snapshot.SnapshotRef);
+        Assert.Equal("hit", hit.Data!.Snapshot.CacheStatus);
+        Assert.Equal(first.Data.Snapshot.SnapshotRef, hit.Data.Snapshot.SnapshotRef);
+        Assert.NotEqual(first.Data.Snapshot.SnapshotRef, refreshed.Data!.Snapshot.SnapshotRef);
+        Assert.Equal(first.Data.DataDomains.Irego.Latest!.SessionRef,
+            refreshed.Data.DataDomains.Irego.Latest!.SessionRef);
     }
 
     private static IReGoSessionAnalysisService SessionService(

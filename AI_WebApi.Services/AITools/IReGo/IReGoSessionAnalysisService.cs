@@ -44,6 +44,12 @@ public sealed class IReGoSessionAnalysisService : IIReGoSessionAnalysisService
                 string.Empty);
         }
 
+        if (IReGoDataVersion.IsRetiredSession(request.SessionRef))
+        {
+            return Failed(requestId, IReGoReasonCodes.SessionRefNotFound,
+                string.Empty, IReGoDataVersion.RetiredSessionMessage);
+        }
+
         var evaluation = await _evaluationService.EvaluateAsync(
             context,
             cancellationToken);
@@ -273,21 +279,21 @@ public sealed class IReGoSessionAnalysisService : IIReGoSessionAnalysisService
                 new IReGoSourceDto
                 {
                     SourceSystem = evaluation.Raw.SourceSystem,
-                    SourceObject = "robotdb_main.rehabplan",
+                    SourceObject = "project.rehabplan",
                     Role = "plan_and_state",
                     Completeness = evaluation.Raw.SourceCompleteness
                 },
                 new IReGoSourceDto
                 {
                     SourceSystem = evaluation.Raw.SourceSystem,
-                    SourceObject = "robotdb_main.report.details",
+                    SourceObject = "project.report.details",
                     Role = "session_report",
                     Completeness = evaluation.Raw.SourceCompleteness
                 },
                 new IReGoSourceDto
                 {
                     SourceSystem = evaluation.Raw.SourceSystem,
-                    SourceObject = "robotdb_main.templates + users + vendor",
+                    SourceObject = "project.dbuser + dbroleuser + dbbuniess",
                     Role = "classification_and_identity_closure",
                     Completeness = evaluation.Raw.SourceCompleteness
                 }
@@ -821,14 +827,16 @@ public sealed class IReGoSessionAnalysisService : IIReGoSessionAnalysisService
     private ToolResponseDto<IReGoSessionAnalysisDto> Failed(
         string requestId,
         string reason,
-        string watermark) =>
+        string watermark,
+        string? patientMessage = null) =>
         ToolResponseDto<IReGoSessionAnalysisDto>.Create(
             "get_irego_session_analysis",
             requestId,
             ToolStatuses.Failed,
             null,
             new[] { reason },
-            Meta(watermark));
+            Meta(watermark),
+            patientMessage);
 
     private ToolMetaDto Meta(string? watermark) => new()
     {

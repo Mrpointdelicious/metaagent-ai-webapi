@@ -13,28 +13,28 @@ public sealed class IReGoReportArtifactStoreTests
         var store = Store();
 
         var first = store.CreateArtifactRef(
-            "irego_patient_v1_subject",
-            "irego_s_v1_session",
+            "irego_patient_v2_subject",
+            "irego_s_v2_session",
             "snapshot-a",
             "irego-single-v1");
         var second = store.CreateArtifactRef(
-            "irego_patient_v1_subject",
-            "irego_s_v1_session",
+            "irego_patient_v2_subject",
+            "irego_s_v2_session",
             "snapshot-a",
             "irego-single-v1");
         var changedSource = store.CreateArtifactRef(
-            "irego_patient_v1_subject",
-            "irego_s_v1_session",
+            "irego_patient_v2_subject",
+            "irego_s_v2_session",
             "snapshot-b",
             "irego-single-v1");
         var changedPatient = store.CreateArtifactRef(
-            "irego_patient_v1_another",
-            "irego_s_v1_session",
+            "irego_patient_v2_another",
+            "irego_s_v2_session",
             "snapshot-a",
             "irego-single-v1");
         var changedTemplate = store.CreateArtifactRef(
-            "irego_patient_v1_subject",
-            "irego_s_v1_session",
+            "irego_patient_v2_subject",
+            "irego_s_v2_session",
             "snapshot-a",
             "irego-single-v2");
 
@@ -42,8 +42,8 @@ public sealed class IReGoReportArtifactStoreTests
         Assert.NotEqual(first, changedSource);
         Assert.NotEqual(first, changedPatient);
         Assert.NotEqual(first, changedTemplate);
-        Assert.StartsWith("irego_img_v2_", first);
-        Assert.Equal("irego_img_v2_".Length + 64, first.Length);
+        Assert.StartsWith("irego_img_v3_", first);
+        Assert.Equal("irego_img_v3_".Length + 64, first.Length);
         Assert.DoesNotContain("subject", first);
         Assert.DoesNotContain("session", first);
     }
@@ -53,7 +53,7 @@ public sealed class IReGoReportArtifactStoreTests
     {
         var store = Store();
         const string artifactRef =
-            "irego_img_v1_0123456789abcdef0123456789abcdef";
+            "irego_img_v3_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         var bytes = new byte[] { 137, 80, 78, 71 };
         store.Store(artifactRef, bytes);
         var token = store.IssueAccessToken(
@@ -75,7 +75,7 @@ public sealed class IReGoReportArtifactStoreTests
     {
         var store = Store();
         const string artifactRef =
-            "irego_img_v1_0123456789abcdef0123456789abcdef";
+            "irego_img_v3_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         store.Store(artifactRef, new byte[] { 1 });
         var token = store.IssueAccessToken(
             artifactRef,
@@ -97,8 +97,8 @@ public sealed class IReGoReportArtifactStoreTests
             var firstStore = new FileSystemIReGoReportArtifactStore(
                 Options.Create(options));
             var artifactRef = firstStore.CreateArtifactRef(
-                "irego_patient_v1_subject",
-                "irego_s_v1_session",
+                "irego_patient_v2_subject",
+                "irego_s_v2_session",
                 "snapshot-a",
                 "irego-single-v2");
             var bytes = new byte[] { 137, 80, 78, 71, 13, 10 };
@@ -111,7 +111,7 @@ public sealed class IReGoReportArtifactStoreTests
 
             Assert.Equal("durable_filesystem", recreatedStore.StorageMode);
             Assert.True(File.Exists(
-                Path.Combine(storagePath, artifactRef + ".png")));
+                Path.Combine(storagePath, IReGoDataVersion.StorageDirectory, artifactRef + ".png")));
             Assert.Equal(ReportImageAccessStatus.Available, resolved.Status);
             Assert.Equal(artifactRef, resolved.ArtifactRef);
             Assert.Equal(bytes, resolved.Bytes);
@@ -126,7 +126,7 @@ public sealed class IReGoReportArtifactStoreTests
     }
 
     [Fact]
-    public void Durable_store_keeps_legacy_v1_artifacts_readable()
+    public void Durable_store_rejects_legacy_artifacts_even_when_the_file_exists()
     {
         var storagePath = Path.Combine(
             Path.GetTempPath(),
@@ -140,11 +140,13 @@ public sealed class IReGoReportArtifactStoreTests
                 "irego_img_v1_0123456789abcdef0123456789abcdef";
             var bytes = new byte[] { 137, 80, 78, 71 };
 
-            store.Store(legacyArtifactRef, bytes);
+            File.WriteAllBytes(Path.Combine(storagePath, legacyArtifactRef + ".png"), bytes);
+            File.WriteAllBytes(Path.Combine(storagePath, IReGoDataVersion.StorageDirectory, legacyArtifactRef + ".png"), bytes);
             var resolved = store.ResolveArtifact(legacyArtifactRef);
-
-            Assert.Equal(ReportImageAccessStatus.Available, resolved.Status);
-            Assert.Equal(bytes, resolved.Bytes);
+            Assert.Equal(ReportImageAccessStatus.Invalid, resolved.Status);
+            Assert.False(store.TryGet(legacyArtifactRef, out _));
+            Assert.Throws<InvalidOperationException>(() => store.Store(legacyArtifactRef, bytes));
+            Assert.Throws<InvalidOperationException>(() => store.IssueAccessToken(legacyArtifactRef, DateTimeOffset.UtcNow.AddMinutes(1)));
         }
         finally
         {
@@ -183,7 +185,7 @@ public sealed class IReGoReportArtifactStoreTests
     }
 
     [Fact]
-    public void Expired_legacy_token_keeps_artifact_reference_for_refresh()
+    public void Expired_current_token_keeps_current_artifact_reference_for_refresh()
     {
         var storagePath = Path.Combine(
             Path.GetTempPath(),
@@ -194,8 +196,8 @@ public sealed class IReGoReportArtifactStoreTests
             var store = new FileSystemIReGoReportArtifactStore(
                 Options.Create(DurableOptions(storagePath)));
             var artifactRef = store.CreateArtifactRef(
-                "irego_patient_v1_subject",
-                "irego_s_v1_session",
+                "irego_patient_v2_subject",
+                "irego_s_v2_session",
                 "snapshot-a",
                 "irego-single-v2");
             store.Store(artifactRef, new byte[] { 1, 2, 3 });

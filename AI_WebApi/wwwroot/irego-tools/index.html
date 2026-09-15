@@ -233,8 +233,8 @@
         <h1>六项工具，一条可信调用链</h1>
         <p class="lead">
           当前开放患者上下文、既往记录分页查询、单次会话分析、单次报告图片、跨报告分析与跨报告图片六项工具。
-          六者统一读取 <code>robotdb_main</code>，身份参数由 Dify 系统/运行时绑定；
-          LLM 只能选择前一工具真实返回的 <code>session_ref</code>，不能填写患者 ID 或编造会话引用。
+          六者统一读取 <code>project</code>，身份参数由 Dify 系统/运行时绑定；
+          LLM 只能选择前一工具真实返回的 <code>session_ref</code>，不能填写患者 ID 或编造会话引用。<strong>旧 ID、v1 会话引用、旧缓存及旧报告链接已停用，不再可用；请重新绑定患者、查询记录并生成报告。</strong>
         </p>
         <div class="hero-actions">
           <a class="button" href="#interfaces">查看接口规格</a>
@@ -408,7 +408,7 @@
                   <tbody>
                     <tr><td><code>system_context</code></td><td><span class="pill system">系统</span></td><td>字段规则与上一接口完全相同，必须由 Dify 自动绑定。</td></tr>
                     <tr><td><code>selector</code></td><td>latest_usable / session_ref</td><td>选择最近可用会话，或按上一步返回的会话引用查询。</td></tr>
-                    <tr><td><code>session_ref</code></td><td>irego_s_v1_… / null</td><td>稳定匿名签名引用。可由 LLM 从工具已经返回的历史引用中选择，但不得自行编造；不包含数据库主键明文，也不依赖缓存解析。</td></tr>
+                    <tr><td><code>session_ref</code></td><td>irego_s_v2_… / null</td><td>稳定匿名签名引用。可由 LLM 从工具已经返回的历史引用中选择，但不得自行编造；不包含数据库主键明文，也不依赖缓存解析。</td></tr>
                     <tr><td><code>detail_level</code></td><td>brief / summary / standard</td><td>brief/summary 不返回指标明细；standard 返回规范化指标。</td></tr>
                     <tr><td><code>quality_detail</code></td><td>none / summary / full</td><td>控制数据质量问题的返回详细度，不改变计算规则。</td></tr>
                   </tbody>
@@ -435,7 +435,7 @@
     <span class="key">"user"</span>: <span class="value">"7"</span>,
     <span class="key">"conversation_id"</span>: <span class="value">"conv-42"</span>
   },
-  <span class="key">"session_ref"</span>: <span class="value">"irego_s_v1_…"</span>
+  <span class="key">"session_ref"</span>: <span class="value">"irego_s_v2_…"</span>
 }</pre>
               </div>
               <div>
@@ -669,7 +669,7 @@
         <div class="callout">
           <strong>稳定会话引用：</strong>
           <code>session_ref</code> 使用带版本前缀的 HMAC-SHA256 签名，
-          格式为 <code>irego_s_v1_&lt;128-bit-signature&gt;</code>。
+          格式为 <code>irego_s_v2_&lt;128-bit-signature&gt;</code>。
           签名输入绑定租户、患者、计划、报告和报告结构，但输出不暴露这些数据库主键。
           查询指定引用时，服务会针对当前患者的可用会话重新计算并匹配；进程内缓存只用于性能优化。
           部署时必须通过 <code>IReGoTools__SessionRefSigningKey</code> 提供至少 32 字节的持久随机密钥；
@@ -753,7 +753,7 @@
           <p>实现只依赖当前配置的数据连接。切换连接后不需要开启对账开关或修改生产白名单。</p>
         </div>
         <div class="rules">
-          <article class="rule-card"><span class="pill rule">唯一事实源</span><h3 style="margin-top:12px">只查 robotdb_main</h3><p>逻辑源名是 <code>robotdb_main</code>，物理 schema 是 <code>robotdb</code>。<code>project</code>、<code>wx_*</code>、备份表和临时表均不进入患者查询。</p></article>
+          <article class="rule-card"><span class="pill rule">唯一事实源</span><h3 style="margin-top:12px">只查 project</h3><p>患者身份统一使用 <code>project.dbuser.Id</code>。旧 ID 不再映射，旧会话引用、缓存和报告链接已停用，请重新查询或生成。</p></article>
           <article class="rule-card"><span class="pill rule">结构准入</span><h3 style="margin-top:12px">主链引用闭环</h3><p><code>rehabplan.devicetype=1</code>、<code>templates.modelid=1</code>、患者 <code>UserType=2</code>、医生 <code>UserType=1</code>，且患者、医生属于同一存在的 Vendor 记录；任一关键引用缺失即排除计划。</p></article>
           <article class="rule-card"><span class="pill rule">汇总报告</span><h3 style="margin-top:12px">report.id 对应计划 id</h3><p><code>robotdb.report.id=robotdb.rehabplan.id</code>，物理上一份计划至多一份汇总报告。孤儿报告直接忽略，不尝试跨库补齐。</p></article>
           <article class="rule-card"><span class="pill rule">原始数据</span><h3 style="margin-top:12px">只作执行证据</h3><p><code>reportdata</code> 与 <code>reportdata_new</code> 的多行记录不是多份汇总报告；本期不解析正文，仅用于识别“完成标志与执行证据冲突”。</p></article>
@@ -769,7 +769,7 @@
       <div class="shell">
         <div class="section-head">
           <div class="eyebrow">07 · Database switch readiness</div>
-          <h2>旧适配层退出，连接切到 robotdb</h2>
+          <h2>统一新患者 ID，连接切到 project</h2>
           <p>三个工具共用同一套 <code>robotdb_main</code> Repository；“multisource”只为兼容工具名，不再表示跨数据库合并。</p>
         </div>
         <div class="removed">
@@ -786,7 +786,7 @@
           <div>
             <h3>现在采用</h3>
             <ul>
-              <li>物理连接指向 <code>robotdb</code>，逻辑来源标记为 <code>robotdb_main</code></li>
+              <li>物理连接指向 <code>project</code>，身份统一使用新 <code>dbuser.Id</code></li>
               <li>患者、医生、机构、模板、计划和报告在同一命名空间闭环</li>
               <li>完成状态与报告结构同时决定会话是否可用</li>
               <li>图片只短时驻留内存，过期或重启后按需再生成</li>

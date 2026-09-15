@@ -1,3 +1,4 @@
+using AI_WebApi.Model.AITools;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,21 +16,22 @@ namespace AI_WebApi.Services.AITools.IReGo;
 internal static class IReGoReportContentFingerprint
 {
     internal const string SingleContentProfile =
-        "irego-single-content-v1";
+        "irego-single-content-v2";
     internal const string SingleEvaluationRules =
         "irego-single-evaluation-v2";
     internal const string LongitudinalContentProfile =
-        "irego-longitudinal-content-v1";
+        "irego-longitudinal-content-v2";
     internal const string LongitudinalEvaluationRules =
         "irego-longitudinal-evaluation-v1";
 
     public static string SingleTrainingScope(
         IReGoSessionAnalysisDto analysis) =>
-        "irego_single_scope_v1_" + Hash(writer =>
+        "irego_single_scope_v2_" + Hash(writer =>
         {
             writer.WriteStartObject();
-            writer.WriteString("scope_schema", "irego-single-scope-v1");
-            writer.WriteString("source_namespace", analysis.Session.SourceSystem);
+            writer.WriteString("scope_schema", "irego-single-scope-v2");
+            writer.WriteString("source_namespace", IReGoDataVersion.Namespace);
+            writer.WriteString("data_generation", IReGoDataVersion.Generation);
             writer.WriteString("session_ref", analysis.Session.SessionRef);
             writer.WriteString("plan_ref", analysis.Plan.PlanRef);
             writer.WriteEndObject();
@@ -37,11 +39,12 @@ internal static class IReGoReportContentFingerprint
 
     public static string LongitudinalTrainingScope(
         IReGoLongitudinalAnalysisDto analysis) =>
-        "irego_window_scope_v1_" + Hash(writer =>
+        "irego_window_scope_v2_" + Hash(writer =>
         {
             writer.WriteStartObject();
-            writer.WriteString("scope_schema", "irego-longitudinal-scope-v1");
-            writer.WriteString("source_namespace", "robotdb_main");
+            writer.WriteString("scope_schema", "irego-longitudinal-scope-v2");
+            writer.WriteString("source_namespace", IReGoDataVersion.Namespace);
+            writer.WriteString("data_generation", IReGoDataVersion.Generation);
             writer.WritePropertyName("positions");
             writer.WriteStartArray();
             foreach (var report in analysis.Reports
@@ -81,6 +84,7 @@ internal static class IReGoReportContentFingerprint
     {
         writer.WriteStartObject();
         writer.WriteString("content_schema", SingleContentProfile);
+        writer.WriteString("data_generation", IReGoDataVersion.Generation);
         writer.WriteString("evaluation_rules", SingleEvaluationRules);
         writer.WriteString("locale", "zh-CN");
 
@@ -148,6 +152,7 @@ internal static class IReGoReportContentFingerprint
     {
         writer.WriteStartObject();
         writer.WriteString("content_schema", LongitudinalContentProfile);
+        writer.WriteString("data_generation", IReGoDataVersion.Generation);
         writer.WriteString("evaluation_rules", LongitudinalEvaluationRules);
         writer.WriteString("locale", "zh-CN");
 

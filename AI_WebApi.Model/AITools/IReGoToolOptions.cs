@@ -16,7 +16,7 @@ public sealed class IReGoReportImageOptions
     public string Mode { get; set; } = "DurableFileSystem";
     public string SigningKey { get; set; } = string.Empty;
     public string PublicBaseUrl { get; set; } = string.Empty;
-    public string StoragePath { get; set; } = "data/patient-reports";
+    public string StoragePath { get; set; } = "data/patient-reports/" + IReGoDataVersion.StorageDirectory;
     public int UrlTtlSeconds { get; set; } = 300;
     public int CacheTtlSeconds { get; set; } = 600;
     public int MaxImageBytes { get; set; } = 5 * 1024 * 1024;

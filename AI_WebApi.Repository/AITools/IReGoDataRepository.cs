@@ -1,3 +1,4 @@
+using SqlSugar;
 using AI_WebApi.Model.Domain.IReGo;
 using AI_WebApi.Model.Entities;
 using AI_WebApi.Repository.BASE;
@@ -5,8 +6,7 @@ using AI_WebApi.Repository.BASE;
 namespace AI_WebApi.Repository.AITools;
 
 /// <summary>
-/// Reads only the robotdb_main table family. Legacy project and wx/backup
-/// tables are deliberately outside this repository.
+/// Reads the IREGO table family in project using current dbuser identities.
 /// </summary>
 public sealed class IReGoDataRepository : IIReGoDataRepository
 {
@@ -43,7 +43,9 @@ public sealed class IReGoDataRepository : IIReGoDataRepository
         cancellationToken.ThrowIfCancellationRequested();
 
         var patientSource = await _users.Db.Queryable<RobotDbMainUserEntity>()
-            .Where(x => x.Id == patientId && x.UserType == 2)
+            .Where(x => x.Id == patientId && (x.IsDeleted == null || x.IsDeleted == false) &&
+                SqlFunc.Subqueryable<DbRoleUserEntity>().Where(r =>
+                    r.UserId == x.Id && r.RoleId == DbRoleUserEntity.PatientRole).Any())
             .FirstAsync();
 
         if (patientSource == null)
@@ -74,11 +76,13 @@ public sealed class IReGoDataRepository : IIReGoDataRepository
         var doctors = doctorIds.Count == 0
             ? new List<RobotDbMainUserEntity>()
             : await _users.Db.Queryable<RobotDbMainUserEntity>()
-                .Where(x => doctorIds.Contains(x.Id))
+                .Where(x => doctorIds.Contains(x.Id) && (x.IsDeleted == null || x.IsDeleted == false) &&
+                    SqlFunc.Subqueryable<DbRoleUserEntity>().Where(r =>
+                        r.UserId == x.Id && r.RoleId == DbRoleUserEntity.DoctorRole).Any())
                 .ToListAsync();
-        var vendorExists = patientSource.VendorId > 0 &&
+        var vendorExists = patientSource.BusinessId > 0 &&
             await _vendors.Db.Queryable<RobotDbMainVendorEntity>()
-                .AnyAsync(x => x.Id == patientSource.VendorId);
+                .AnyAsync(x => x.Id == patientSource.BusinessId);
 
         var templateMap = templates.ToDictionary(x => x.Id);
         var doctorMap = doctors.ToDictionary(x => x.Id);
@@ -88,8 +92,7 @@ public sealed class IReGoDataRepository : IIReGoDataRepository
                 templateMap.TryGetValue(plan.TemplateId, out var template) &&
                 template.ModelId == 1 &&
                 doctorMap.TryGetValue(plan.DoctorId, out var doctor) &&
-                doctor.UserType == 1 &&
-                doctor.VendorId == patientSource.VendorId)
+                doctor.BusinessId == patientSource.BusinessId)
             .ToArray();
         var referenceAnomalyCount = sourcePlans.Count - validSourcePlans.Length;
         var planIds = validSourcePlans.Select(x => x.Id).Distinct().ToList();
@@ -139,17 +142,17 @@ public sealed class IReGoDataRepository : IIReGoDataRepository
         {
             Id = patientSource.Id,
             Name = patientSource.Name,
-            UserDetails = patientSource.Details,
+            UserDetails = patientSource.UserDetails,
             Status = patientSource.Status,
-            IsDeleted = false,
-            BusinessId = patientSource.VendorId
+            IsDeleted = patientSource.IsDeleted,
+            BusinessId = patientSource.BusinessId
         };
         var plans = validSourcePlans.Select(x => new RehabPlanEntity
         {
             Id = x.Id,
             UserId = x.PatientId,
             TemplateId = x.TemplateId,
-            BusinessId = patientSource.VendorId,
+            BusinessId = patientSource.BusinessId,
             DoctorId = x.DoctorId,
             DeviceId = x.Id,
             CreateTime = x.CreateTime,
@@ -195,7 +198,7 @@ public sealed class IReGoDataRepository : IIReGoDataRepository
                 .Concat(legacyEvidenceIds)
                 .ToHashSet(),
             ReferenceAnomalyCount = referenceAnomalyCount,
-            SourceSystem = "robotdb_main",
+            SourceSystem = "project",
             SourceCompleteness = "authoritative_primary"
         };
     }

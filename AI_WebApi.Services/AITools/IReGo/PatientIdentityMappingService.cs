@@ -7,8 +7,7 @@ using Microsoft.Extensions.Options;
 namespace AI_WebApi.Services.AITools.IReGo;
 
 /// <summary>
-/// Temporary identity bridge. A mapping is returned only when exact name plus
-/// patient user type produces exactly one robotdb user. Zero and multiple
+/// Current patient resolution. Both IDs refer to the same project user. Zero and multiple
 /// matches intentionally share PATIENT_BINDING_NOT_FOUND so callers cannot
 /// choose or guess a candidate.
 /// </summary>

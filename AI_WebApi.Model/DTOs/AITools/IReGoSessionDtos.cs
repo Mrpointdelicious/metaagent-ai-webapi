@@ -77,7 +77,7 @@ public sealed class IReGoSessionIdentityDto
     public string SessionRef { get; init; } = string.Empty;
     public string PatientRef { get; init; } = string.Empty;
     public string DeviceFamily { get; init; } = "irego";
-    public string SourceSystem { get; init; } = "robotdb_main";
+    public string SourceSystem { get; init; } = "project";
 }
 
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
@@ -229,9 +229,9 @@ public sealed class PlanReportComparisonDto
 public sealed class IReGoMappingDto
 {
     public string DeviceRule { get; init; } =
-        "robotdb_main.rehabplan.devicetype=1 AND robotdb_main.templates.modelid=1";
+        "project.rehabplan.devicetype=1 AND project.templates.modelid=1";
     public string PlanReportRule { get; init; } =
-        "robotdb_main.report.Id=robotdb_main.rehabplan.Id";
+        "project.report.Id=project.rehabplan.Id";
     public string PrimaryReportContainer { get; init; } = "ReportDetails.ReportList";
     public string ProcessFieldRole { get; init; } = "sequence_consistency_only";
     public string RevisionPolicy { get; init; } = "single_summary_report_per_plan";

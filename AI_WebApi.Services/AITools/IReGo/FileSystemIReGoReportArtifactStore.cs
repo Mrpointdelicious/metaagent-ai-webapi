@@ -15,7 +15,7 @@ namespace AI_WebApi.Services.AITools.IReGo;
 public sealed class FileSystemIReGoReportArtifactStore :
     IIReGoReportArtifactStore
 {
-    private const string TokenVersion = "v1";
+    private const string TokenVersion = IReGoDataVersion.ImageTokenVersion;
     private const int SignatureBytes = 16;
 
     private readonly byte[] _key;
@@ -37,6 +37,8 @@ public sealed class FileSystemIReGoReportArtifactStore :
             ? "data/patient-reports"
             : configured.StoragePath.Trim();
         _rootPath = Path.GetFullPath(configuredPath, AppContext.BaseDirectory);
+        if (!string.Equals(Path.GetFileName(_rootPath), IReGoDataVersion.StorageDirectory, StringComparison.Ordinal))
+            _rootPath = Path.Combine(_rootPath, IReGoDataVersion.StorageDirectory);
         Directory.CreateDirectory(_rootPath);
     }
 
@@ -145,6 +147,9 @@ public sealed class FileSystemIReGoReportArtifactStore :
 
         var payload = string.Join(
             "|",
+            TokenVersion,
+            IReGoDataVersion.Namespace,
+            IReGoDataVersion.Generation,
             artifactRef,
             expiresAt.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture));
         return string.Join(
@@ -227,10 +232,13 @@ public sealed class FileSystemIReGoReportArtifactStore :
         }
 
         var payloadParts = payload.Split('|');
-        if (payloadParts.Length != 2 ||
-            !IsValidArtifactRef(payloadParts[0]) ||
+        if (payloadParts.Length != 5 ||
+            payloadParts[0] != TokenVersion ||
+            payloadParts[1] != IReGoDataVersion.Namespace ||
+            payloadParts[2] != IReGoDataVersion.Generation ||
+            !IsValidArtifactRef(payloadParts[3]) ||
             !long.TryParse(
-                payloadParts[1],
+                payloadParts[4],
                 NumberStyles.Integer,
                 CultureInfo.InvariantCulture,
                 out var expirySeconds))
@@ -240,7 +248,7 @@ public sealed class FileSystemIReGoReportArtifactStore :
 
         try
         {
-            artifactRef = payloadParts[0];
+            artifactRef = payloadParts[3];
             expiresAt = DateTimeOffset.FromUnixTimeSeconds(expirySeconds);
             return true;
         }

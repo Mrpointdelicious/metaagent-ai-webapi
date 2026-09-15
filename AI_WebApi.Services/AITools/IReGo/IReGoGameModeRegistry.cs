@@ -6,7 +6,7 @@ namespace AI_WebApi.Services.AITools.IReGo;
 /// </summary>
 public static class IReGoGameModeRegistry
 {
-    public const string Version = "robotdb-game-mode-1.0.0";
+    public const string Version = "project-game-mode-2.0.0";
 
     public static string? DisplayName(int? gameMode) => gameMode switch
     {

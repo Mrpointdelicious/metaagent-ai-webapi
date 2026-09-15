@@ -81,8 +81,8 @@ public static class ToolStatuses
 public static class IReGoContract
 {
     public const string Version = "1.6.0";
-    public const string DeviceRegistryVersion = "robotdb-main-device-1.0.0";
-    public const string SchemaRegistryVersion = "robotdb-main-schema-1.0.0";
-    public const string MetricRegistryVersion = "robotdb-main-metric-2.0.0";
-    public const string StateRegistryVersion = "robotdb-main-state-1.0.0";
+    public const string DeviceRegistryVersion = "project-main-device-2.0.0";
+    public const string SchemaRegistryVersion = "project-main-schema-2.0.0";
+    public const string MetricRegistryVersion = "project-main-metric-3.0.0";
+    public const string StateRegistryVersion = "project-main-state-2.0.0";
 }

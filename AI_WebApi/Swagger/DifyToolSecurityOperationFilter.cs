@@ -48,11 +48,11 @@ public sealed class DifyToolSecurityOperationFilter : IOperationFilter
 
         if (operation.OperationId == "resolve_patient_identity")
         {
-            operation.Summary = "把首轮手机号或旧项目患者ID临时映射为 IREGO 患者ID";
+            operation.Summary = "通过手机号或当前患者ID查询统一患者身份";
             operation.Description =
-                "phone 必须来自 Dify 首轮输入变量；兼容的 project_patient_id 必须来自旧项目查询结果。" +
-                "两者只能传一个且都不得由模型猜测。手机号先在临时旧库唯一定位姓名，" +
-                "再按姓名和固定患者类型匹配；仅唯一命中时返回 robot_patient_id，" +
+                "phone 必须来自 Dify 首轮输入变量；project_patient_id 必须为当前 project.dbuser.Id。" +
+                "两者只能传一个且都不得由模型猜测。按当前手机号和患者角色查询，" +
+                "仅唯一命中时返回相等的 project_patient_id 和 robot_patient_id，" +
                 "零命中和多命中统一返回 PATIENT_BINDING_NOT_FOUND。";
         }
         else if (operation.OperationId == "get_multisource_patient_context")
@@ -61,7 +61,7 @@ public sealed class DifyToolSecurityOperationFilter : IOperationFilter
             operation.Description =
                 "返回的 session_ref 是后端签名生成的匿名稳定引用。调用方可以选择工具返回过的引用，" +
                 "但不得自行编造；患者身份必须由 Dify 运行时绑定。" +
-                "本期唯一患者事实源为 robotdb_main；工具名为兼容保留，不代表跨库合并。" +
+                "患者统一使用当前 project.dbuser.Id；旧ID、旧引用和旧缓存已停用，不再可用。" +
                 "recent_sessions 只返回完成状态和时间语义满足条件的会话。";
         }
         else if (operation.OperationId == "get_irego_session_analysis")

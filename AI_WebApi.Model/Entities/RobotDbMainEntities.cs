@@ -3,22 +3,21 @@ using SqlSugar;
 namespace AI_WebApi.Model.Entities;
 
 /// <summary>
-/// Physical robotdb entities used only by the robotdb_main IREGO adapter.
-/// They intentionally remain separate from the legacy project-schema entities.
+/// Physical project entities used by the IREGO adapter.
+/// Historical class names are retained to keep the adapter changes local.
 /// </summary>
-[SugarTable("users")]
+[SugarTable("dbuser")]
 public sealed class RobotDbMainUserEntity
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
     public int Id { get; set; }
 
-    public int VendorId { get; set; }
-    public int UserType { get; set; }
+    public int? BusinessId { get; set; }
+    public bool? IsDeleted { get; set; }
     public string? Name { get; set; }
     public int? Status { get; set; }
 
-    [SugarColumn(ColumnName = "details")]
-    public string? Details { get; set; }
+    public string? UserDetails { get; set; }
 }
 
 [SugarTable("rehabplan")]
@@ -40,13 +39,11 @@ public sealed class RobotDbMainRehabPlanEntity
     public string? Details { get; set; }
 
     [SugarColumn(ColumnName = "createtime")]
-    public DateTime CreateTime { get; set; }
+    public DateTime? CreateTime { get; set; }
 
     [SugarColumn(ColumnName = "templateid")]
     public int TemplateId { get; set; }
 
-    [SugarColumn(ColumnName = "updatetime")]
-    public DateTime UpdateTime { get; set; }
 }
 
 [SugarTable("report")]
@@ -77,7 +74,7 @@ public sealed class RobotDbMainTemplateEntity
     public int Status { get; set; }
 }
 
-[SugarTable("vendor")]
+[SugarTable("dbbuniess")]
 public sealed class RobotDbMainVendorEntity
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
