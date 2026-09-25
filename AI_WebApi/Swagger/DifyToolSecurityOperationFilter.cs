@@ -117,6 +117,38 @@ public sealed class DifyToolSecurityOperationFilter : IOperationFilter
                 "session_refs_json、report_type、指标数组、HTML 或任意趋势结论。" +
                 "后端按固定模板生成 PNG 并持久化到 artifact_ref。";
         }
+        else if (operation.OperationId == "get_iretour_patient_context")
+        {
+            operation.Summary = "获取当前患者的 IReTour 数据概览与可查询能力";
+            operation.Description =
+                "IReTour 域入口工具：返回会话计数、活动分布、最近会话、最新可用会话与" +
+                "查询能力位（latest_usable / by_session_ref / longitudinal）。" +
+                "原始传感器数组与未签核字段一律不返回；患者身份由 Dify 运行时注入。";
+        }
+        else if (operation.OperationId == "get_iretour_patient_history")
+        {
+            operation.Summary = "分页查询 IReTour 训练记录目录";
+            operation.Description =
+                "只负责发现当前患者可查询的 IReTour 会话与结果状态，返回稳定 session_ref。" +
+                "session_ref 只能由本工具或 context 工具返回，禁止编造；" +
+                "不在此接口中生成改善、下降或疗效结论。";
+        }
+        else if (operation.OperationId == "get_iretour_session_analysis")
+        {
+            operation.Summary = "分析一次 IReTour 训练会话";
+            operation.Description =
+                "只接受工具已经返回的 session_ref（或 latest_usable 选择器）。" +
+                "返回计划事实、时间事实、白名单汇总指标、质量问题与原始证据存在性；" +
+                "原始传感器数组不返回给模型。单位未签核时 unit 为空，不做临床解释。";
+        }
+        else if (operation.OperationId == "get_iretour_longitudinal_analysis")
+        {
+            operation.Summary = "按语义窗口比较同类 IReTour 训练";
+            operation.Description =
+                "activity_scope 必须是具体活动类别，不支持跨项目混算。缺失点保留会话位置且" +
+                "值为 null；首版只给出数值方向（increased/decreased/unchanged/fluctuating），" +
+                "interpretation_status 固定为 not_evaluated，不生成疗效或诊断结论。";
+        }
 
         KeepOnlyApplicationJson(operation);
 

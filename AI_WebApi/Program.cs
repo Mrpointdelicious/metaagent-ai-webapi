@@ -24,6 +24,8 @@ builder.Services.AddSingleton(new AppSettings(builder.Configuration));
 builder.Services.AddSqlsugarSetup();
 builder.Services.Configure<IReGoToolOptions>(
     builder.Configuration.GetSection(IReGoToolOptions.SectionName));
+builder.Services.Configure<IReTourToolOptions>(
+    builder.Configuration.GetSection(IReTourToolOptions.SectionName));
 builder.Services.Configure<HospitalOperationsOptions>(
     builder.Configuration.GetSection(HospitalOperationsOptions.SectionName));
 builder.Services.Configure<RehabToolsOptions>(

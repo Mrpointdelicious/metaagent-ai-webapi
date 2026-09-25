@@ -26,10 +26,12 @@ public sealed class ToolResponseDto<T>
         T? data,
         IEnumerable<string>? reasonCodes,
         ToolMetaDto meta,
-        string? patientMessage = null) =>
+        string? patientMessage = null,
+        string? contractVersion = null) =>
         new()
         {
             ToolName = toolName,
+            ContractVersion = contractVersion ?? IReGoContract.Version,
             RequestId = requestId,
             Status = status,
             Data = data,
