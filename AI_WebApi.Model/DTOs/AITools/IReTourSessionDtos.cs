@@ -16,6 +16,8 @@ public sealed class GetIReTourSessionAnalysisRequestDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourSessionAnalysisDto
 {
+    public string SourceSnapshot { get; set; } = string.Empty;
+    public IReTourReadingDto Interpretation { get; set; } = new();
     public IReTourSessionIdentityDto Session { get; init; } = new();
     public IReTourSessionTimeDto Time { get; init; } = new();
     public IReTourActivityBriefDto Activity { get; init; } = new();
@@ -50,6 +52,9 @@ public sealed class IReTourSessionTimeDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourSessionPlanDto
 {
+    public string SemanticsStatus { get; init; } = "observed_settings_not_verified_prescription";
+    public string DurationSourceField { get; init; } = "dbwalk.duration";
+    public string ParametersSource { get; init; } = "walkreportdetails.details";
     public int? DurationSeconds { get; init; }
     public IReadOnlyList<IReTourPlanParameterDto> Parameters { get; init; } =
         Array.Empty<IReTourPlanParameterDto>();
@@ -75,6 +80,8 @@ public sealed class IReTourSessionResultDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourMetricDto
 {
+    public string SourceField { get; init; } = string.Empty;
+    public string UnitStatus { get; init; } = "unconfirmed";
     public string MetricCode { get; init; } = string.Empty;
     public string DisplayName { get; init; } = string.Empty;
     public decimal? RawValue { get; init; }
@@ -106,4 +113,14 @@ public sealed class IReTourSourceFactDto
     public string SourceTable { get; init; } = string.Empty;
     public string LinkMethod { get; init; } = string.Empty;
     public string LinkStatus { get; init; } = string.Empty;
+}
+
+[JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
+public sealed class IReTourReadingDto
+{
+    public string Method { get; init; } = "deterministic_descriptive_v1";
+    public string Summary { get; init; } = string.Empty;
+    public IReadOnlyList<string> Observations { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> Limitations { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> NextChecks { get; init; } = Array.Empty<string>();
 }

@@ -176,6 +176,69 @@ public sealed class IReTourCoreTests
             x.Code == IReTourReasonCodes.SchemaUnsupported && x.Severity == "error");
     }
 
+    [Fact]
+    public void Transverse_g_family_and_legacy_aliases_both_extract()
+    {
+        var parser = IReTourSummaryParserRegistry.Resolve(6)!;
+        const string details =
+            "{\"name\":\"synthetic\",\"phone\":\"13800000000\",\"g_transSpeed\":1.2," +
+            "\"g_transAdditionalDistance\":3.5,\"g_trailLength\":120," +
+            "\"g_transTrainingDuration\":65,\"g_isStartFromFirst\":true}";
+
+        var parsed = IReTourSummaryExtraction.Parse(details, parser);
+
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "transverse_speed" && x.RawValue == 1.2m);
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "transverse_added_distance" && x.RawValue == 3.5m);
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "transverse_trail_length" && x.RawValue == 120m);
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "transverse_training_duration" && x.RawValue == 65m);
+        Assert.DoesNotContain(parsed.Metrics, x => x.SourceField is "name" or "phone");
+        Assert.Contains(parsed.Parameters, x => x.Code == "is_start_first_g");
+    }
+
+    [Fact]
+    public void Gait_nested_assessment_result_extracts_via_dotted_path()
+    {
+        var parser = IReTourSummaryParserRegistry.Resolve(9)!;
+        const string details =
+            "{\"name\":\"synthetic\",\"phone\":\"13800000000\"," +
+            "\"g_assessmentResult\":{\"speed\":1.1,\"cadence\":98,\"step_num\":42," +
+            "\"step_width\":0.2,\"step_length\":0.7}," +
+            "\"g_assessDuration\":300,\"g_trainingDuration\":\"\"}";
+
+        var parsed = IReTourSummaryExtraction.Parse(details, parser);
+
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "gait_speed" && x.RawValue == 1.1m);
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "gait_cadence" && x.RawValue == 98m);
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "gait_step_num" && x.RawValue == 42m);
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "gait_assess_duration" && x.RawValue == 300m);
+        Assert.DoesNotContain(parsed.Metrics, x => x.SourceField is "name" or "phone");
+    }
+
+    [Fact]
+    public void Stride_extracts_added_distance()
+    {
+        var parser = IReTourSummaryParserRegistry.Resolve(7)!;
+        const string details = "{\"avg_Speed\":0.9,\"distance\":120,\"distance_add\":5}";
+
+        var parsed = IReTourSummaryExtraction.Parse(details, parser);
+
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "stride_added_distance" && x.RawValue == 5m);
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "stride_speed" && x.RawValue == 0.9m);
+    }
+
+    [Fact]
+    public void Sideway_extracts_training_duration()
+    {
+        var parser = IReTourSummaryParserRegistry.Resolve(8)!;
+        const string details =
+            "{\"g_sidewayDuration\":2,\"g_walkingDistance\":10,\"g_trainingDuration\":90}";
+
+        var parsed = IReTourSummaryExtraction.Parse(details, parser);
+
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "sideway_training_duration" && x.RawValue == 90m);
+        Assert.Contains(parsed.Metrics, x => x.MetricCode == "sideway_walking_distance" && x.RawValue == 10m);
+    }
+
     // ---- Report link classification ----
 
     [Fact]
@@ -296,7 +359,7 @@ public sealed class IReTourCoreTests
         int walkItemId,
         int reportItemId) => new()
         {
-            Patient = new IReTourPatientEntity { Id = 100, BusinessId = 1 },
+            Patient = new IReTourPatientEntity { Id = 100, BusinessId = 1, Status = 1, IsDeleted = 0 },
             Binding = new IReTourPatientBinding { Verified = true, BindingVersion = 1 },
             SourceUserIds = new[] { 100 },
             Walks = new[]
@@ -305,7 +368,7 @@ public sealed class IReTourCoreTests
             },
             Devices = new Dictionary<int, IReTourDeviceEntity>
             {
-                [1] = new() { Id = 1, DeviceType = deviceType }
+                [1] = new() { Id = 1, DeviceType = deviceType, BusinessId = 1 }
             },
             SummaryReports = new[] { Summary(10, 1, reportItemId, "{\"avg_Speed\":1.0}") }
         };

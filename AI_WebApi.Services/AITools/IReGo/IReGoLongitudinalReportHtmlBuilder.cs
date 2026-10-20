@@ -222,6 +222,19 @@ public sealed class IReGoLongitudinalReportHtmlBuilder :
             .Append("</section>");
     }
 
+    // Other device reports share the exact chart markup, geometry and colors.
+    // Device adapters provide display-ready values without invoking IReGo evaluation rules.
+    internal static void AppendMetricChart(
+        StringBuilder html,
+        IReGoLongitudinalMetricSeriesDto series,
+        IReadOnlyList<IReGoLongitudinalReportPositionDto> reports) =>
+        AppendMetricGroup(
+            html,
+            new ChartGroup(new[] { series }, series.Unit),
+            reports,
+            new IReGoLongitudinalProjectDto(),
+            Array.Empty<IReGoLongitudinalMetricSeriesDto>());
+
     private static bool IsEvaluationVerdict(string verdict) => verdict is
         "improved" or "stable" or "worsened" or "mixed";
 
@@ -518,6 +531,9 @@ public sealed class IReGoLongitudinalReportHtmlBuilder :
         decimal Y(decimal value) => top +
             (maximum - value) * (height - top - bottom) / (maximum - minimum);
         string N(decimal value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+        var labelStep = Math.Max(1, (int)Math.Ceiling(reports.Count / 10m));
+        bool ShowLabel(int index) => index == reports.Count - 1 ||
+            index % labelStep == 0 && index <= reports.Count - 1 - labelStep;
 
         var colors = new[]
         {
@@ -590,7 +606,7 @@ public sealed class IReGoLongitudinalReportHtmlBuilder :
                     .Append("\" cy=\"").Append(N(y)).Append("\" r=\"6\"><title>")
                     .Append(E(series.DisplayName)).Append("：")
                     .Append(E(displayValue)).Append("</title></circle>");
-                if (group.Series.Count <= 2)
+                if (group.Series.Count <= 2 && ShowLabel(i))
                 {
                     var labelOffset = 12m + seriesIndex * 11m;
                     svg.Append("<text class=\"value-label\" style=\"fill:")
@@ -609,6 +625,7 @@ public sealed class IReGoLongitudinalReportHtmlBuilder :
         for (var i = 0; i < reports.Count; i++)
         {
             var report = reports[i];
+            if (!ShowLabel(i)) continue;
             var x = X(i);
             svg.Append("<text class=\"axis report-label\" x=\"")
                 .Append(N(x)).Append("\" y=\"")
@@ -710,6 +727,8 @@ public sealed class IReGoLongitudinalReportHtmlBuilder :
 
     private static string E(string? value) =>
         WebUtility.HtmlEncode(value ?? string.Empty);
+
+    internal static string VisualStyles => Styles;
 
     private const string Styles = @"
         :root{--ink:#17384d;--muted:#6b8190;--line:#d8e6eb;--wash:#f3f8fa;--blue:#2c86b2;--teal:#32998b;--violet:#7669c8;--gray:#aebbc1;--green:#187f6c}

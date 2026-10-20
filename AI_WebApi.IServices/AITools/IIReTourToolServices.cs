@@ -40,6 +40,36 @@ public interface IIReTourLongitudinalAnalysisService
         CancellationToken cancellationToken);
 }
 
+public interface IIReTourSingleSessionReportService
+{
+    Task<ToolResponseDto<IReTourSingleSessionReportArtifactDto>> GenerateAsync(
+        TrustedPatientContext context,
+        GenerateIReTourSingleSessionReportRequestDto request,
+        string requestBaseUrl,
+        string requestId,
+        CancellationToken cancellationToken);
+}
+
+public interface IIReTourLongitudinalReportService
+{
+    Task<ToolResponseDto<IReTourLongitudinalReportArtifactDto>> GenerateAsync(
+        TrustedPatientContext context,
+        GenerateIReTourLongitudinalReportRequestDto request,
+        string requestBaseUrl,
+        string requestId,
+        CancellationToken cancellationToken);
+}
+
+public interface IIReTourSingleSessionReportHtmlBuilder
+{
+    string Build(IReTourSessionAnalysisDto analysis);
+}
+
+public interface IIReTourLongitudinalReportHtmlBuilder
+{
+    string Build(IReTourLongitudinalAnalysisDto analysis);
+}
+
 /// <summary>Shared evaluation pipeline: binding, device, time, state and metrics.</summary>
 public interface IIReTourPatientEvaluationService
 {

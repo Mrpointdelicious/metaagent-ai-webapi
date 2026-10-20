@@ -203,8 +203,7 @@ public sealed class IReGoSingleSessionReportHtmlBuilder :
         var html = new StringBuilder();
         html.Append("<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">");
         html.Append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
-        html.Append("<style>").Append(Styles)
-            .Append(".hero-meta{grid-template-columns:repeat(4,1fr)}")
+        html.Append("<style>").Append(VisualStyles)
             .Append("</style></head><body>");
         html.Append("<article class=\"report\">");
         BuildHero(html, analysis, reportBlocks.Length);
@@ -266,7 +265,16 @@ public sealed class IReGoSingleSessionReportHtmlBuilder :
             .Append("%\"></i></div>");
         BuildSmartEvaluation(html, evaluation);
 
-        html.Append("</div><div class=\"panel\"><div class=\"panel-title\">各训练项用时占比</div>");
+        html.Append("</div>");
+        BuildDurationPanel(html, durations);
+        html.Append("</div></section>");
+    }
+
+    internal static void BuildDurationPanel(
+        StringBuilder html,
+        IReadOnlyList<DurationSlice> durations)
+    {
+        html.Append("<div class=\"panel\"><div class=\"panel-title\">各训练项用时占比</div>");
         if (durations.Count == 0 || durations.Sum(x => x.Value) <= 0)
         {
             html.Append("<div class=\"empty\">暂无可汇总的训练时长记录</div>");
@@ -301,7 +309,7 @@ public sealed class IReGoSingleSessionReportHtmlBuilder :
             html.Append("</div></div>");
         }
 
-        html.Append("</div></div></section>");
+        html.Append("</div>");
     }
 
     private static void BuildSmartEvaluation(
@@ -611,7 +619,10 @@ public sealed class IReGoSingleSessionReportHtmlBuilder :
 
     private static string E(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 
-    private sealed record DurationSlice(string Name, decimal Value);
+    internal sealed record DurationSlice(string Name, decimal Value);
+
+    internal static string VisualStyles =>
+        Styles + ".hero-meta{grid-template-columns:repeat(4,1fr)}";
 
     private const string Styles = @"
 *{box-sizing:border-box}html,body{margin:0;background:#eaf4f8;color:#14354c;font-family:'Noto Sans CJK SC','Microsoft YaHei','PingFang SC',sans-serif}body{padding:36px}.report{width:1100px;margin:0 auto;background:#fff;border-radius:28px;overflow:hidden;box-shadow:0 25px 70px rgba(29,72,96,.16)}.hero{padding:46px 52px 38px;color:#fff;background:linear-gradient(110deg,#1d536f 0%,#2786a5 53%,#38a79e 100%);position:relative}.hero:after{content:'';position:absolute;width:310px;height:310px;border:1px solid rgba(255,255,255,.09);border-radius:50%;right:-90px;top:-160px;box-shadow:0 0 0 48px rgba(255,255,255,.035)}.eyebrow{font-size:12px;font-weight:700;letter-spacing:3px;color:#bce8f2}.hero h1{font-size:44px;line-height:1.1;margin:14px 0 8px}.hero-sub{font-size:17px;color:#d9f3f5}.hero-meta{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:34px}.hero-meta>div{min-height:68px;padding:13px 15px;border-radius:14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16)}.hero-meta span{display:block;font-size:12px;color:#d8f0f4;margin-bottom:7px}.hero-meta strong{font-size:16px}main{padding:42px 52px 28px}.section{padding:0 0 38px;margin-bottom:34px;border-bottom:1px solid #d8e7ed}.section:last-of-type{border:0}.section-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:24px}.section-index{font-size:12px;font-weight:800;letter-spacing:2px;color:#247eaa;margin-bottom:6px}.section h2{font-size:28px;margin:0;color:#12364e}.overview{display:grid;grid-template-columns:.9fr 1.1fr;gap:18px}.panel{border:1px solid #d7e6ed;border-radius:20px;padding:22px;background:#fbfdfe}.panel-title{font-size:15px;font-weight:800;margin-bottom:18px}.counts{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.count-box{padding:15px;text-align:center;border-radius:13px;background:#f0f6f9}.count-box span{display:block;color:#698396;font-size:13px}.count-box strong{display:block;margin-top:4px;font-size:28px}.completion-row{display:flex;justify-content:space-between;margin-top:20px;font-size:14px}.completion-row strong{font-size:20px;color:#279c8d}.completion-bar{height:8px;background:#e4eef2;border-radius:8px;margin-top:8px;overflow:hidden}.completion-bar i{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,#2585ad,#28a395)}.smart-evaluation{margin-top:14px;padding:11px 13px;border:1px solid #dce9ee;border-radius:12px;background:#f5fafb;color:#496779;font-size:12px;line-height:1.7;display:flex;align-items:flex-start;gap:8px}.smart-evaluation strong{color:#1c627d;flex:0 0 auto}.smart-evaluation span{min-width:0}.smart-evaluation b{color:#15836f;font-weight:800}.duration-wrap{display:flex;gap:28px;align-items:center}.donut{width:150px;height:150px;flex:0 0 150px;border-radius:50%;display:grid;place-items:center}.donut>div{width:96px;height:96px;border-radius:50%;background:#fff;display:grid;place-content:center;text-align:center}.donut strong{font-size:30px}.donut span{font-size:11px;color:#78909e}.legend{display:grid;grid-template-columns:1fr 1fr;gap:13px;flex:1}.legend span{font-size:13px;color:#587184}.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}.empty{display:grid;place-items:center;min-height:150px;color:#8298a7}.compare-header{display:grid;grid-template-columns:1fr 1fr;border:1px solid #d8e7ed;border-bottom:0;border-radius:16px 16px 0 0;overflow:hidden}.compare-header div{padding:13px 19px;background:#f2f7f9;font-size:12px;font-weight:800;color:#637d8e}.compare-header div+div{border-left:1px solid #d8e7ed}.compare-row{display:grid;grid-template-columns:1fr 1fr;border:1px solid #d8e7ed;border-top:0;overflow:hidden}.compare-row:last-child{border-radius:0 0 16px 16px}.compare-side{padding:20px;min-height:96px}.compare-side+div{border-left:1px solid #d8e7ed}.plan-side{background:#f8fbfd}.actual-side{background:#f8fdfc}.compare-title{font-size:18px;margin-bottom:13px}.compare-title:before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#2789b5;margin-right:9px}.actual-side .compare-title:before{background:#249b91}.compare-title.muted{color:#8398a5;font-size:14px}.param-list{display:flex;flex-wrap:wrap;gap:7px}.param{display:flex;gap:6px;padding:7px 10px;border:1px solid #dbe8ee;border-radius:999px;background:#fff;font-size:12px;color:#627c8e}.param b{color:#173a50}.segment-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.segment{border:1px solid #d9e7ec;border-radius:19px;overflow:hidden;background:#fff}.segment-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;background:#eef6fa}.segment.sit .segment-head{background:#eaf8f5}.segment.game .segment-head{background:#fff4da}.segment.balance .segment-head{background:#f1effb}.segment h3{font-size:20px;margin:0}.segment-sub{font-size:11px;color:#78909f;margin-top:5px}.field-list{display:grid;grid-template-columns:1fr 1fr;padding:8px 20px 18px}.field{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px dashed #e0eaee;font-size:13px}.field:nth-last-child(-n+2){border-bottom:0}.field span{color:#6d8493}.field b{text-align:right;color:#16384e}.game-score{min-width:78px;padding:8px 12px;text-align:center;border-radius:12px;background:#fff}.game-score span{display:block;font-size:10px;color:#9e751e}.game-score strong{display:block;font-size:24px;color:#b67c08}.disclaimer{padding:19px 22px;border:1px solid #d9e7ec;border-radius:16px;background:#f2f7f9;font-size:12px;line-height:1.8;color:#607887}.disclaimer strong{display:block;color:#173a50;font-size:14px;margin-bottom:4px}footer{display:flex;justify-content:space-between;padding:20px 52px;border-top:1px solid #e0eaee;color:#8399a6;font-size:11px}@media(max-width:900px){body{padding:0}.report{width:100%;border-radius:0}.hero-meta{grid-template-columns:1fr 1fr}.overview,.segment-grid{grid-template-columns:1fr}.compare-header,.compare-row{grid-template-columns:1fr}.compare-side+div,.compare-header div+div{border-left:0;border-top:1px solid #d8e7ed}}

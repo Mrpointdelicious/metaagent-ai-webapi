@@ -7,10 +7,9 @@ using AI_WebApi.Repository.BASE;
 namespace AI_WebApi.Repository.AITools;
 
 /// <summary>
-/// Reads only the project-schema IReTour table family. Binding tables are
-/// optional governance structures: when missing, direct
-/// dbuser.Id = dbwalk.userId remains the only verified binding path and
-/// everything else fails closed.
+/// Reads only the project-schema IReTour table family. Requires direct
+/// dbuser.Id = dbwalk.userId and a DeviceType=6 device in the same institution.
+/// Patient aliases are not expanded by this production read adapter.
 /// </summary>
 public sealed class IReTourDataRepository : IIReTourDataRepository
 {
@@ -50,48 +49,23 @@ public sealed class IReTourDataRepository : IIReTourDataRepository
             .Where(x => x.Id == context.PatientId)
             .FirstAsync(cancellationToken);
 
-        // Direct primary-key binding: dbwalk.userId equals the canonical
-        // patient dbuser.Id. Verified by construction, no runtime matching.
+        if (patient == null || patient.Status != 1 || patient.IsDeleted != 0 || patient.BusinessId is not > 0)
+            return new IReTourRawDataSet();
+
+        // Production path uses only canonical project IDs. No runtime phone/name or optional alias expansion.
         var sourceUserIds = new List<int> { context.PatientId };
-        IReTourPatientBinding binding = new()
+        var binding = new IReTourPatientBinding
         {
-            Verified = true,
-            SourceUserNamespace = "dbuser",
-            BindingMethod = "direct_primary_key",
-            BindingVersion = 1,
-            BusinessId = patient?.BusinessId
+            Verified = true, SourceUserNamespace = "dbuser", BindingMethod = "direct_primary_key",
+            BindingVersion = 1, BusinessId = patient.BusinessId
         };
-
-        // Optional governance bindings extend the source-user set; a missing
-        // table or schema drift must not break the direct binding path.
-        try
-        {
-            var rows = await _bindings.Db.Queryable<IReTourPatientBindingEntity>()
-                .Where(x =>
-                    x.PatientId == context.PatientId &&
-                    x.BindingStatus == "verified")
-                .ToListAsync(cancellationToken);
-            foreach (var row in rows)
-            {
-                if (row.SourceSystem == IReTourContract.SourceSystem &&
-                    !string.IsNullOrWhiteSpace(row.SourceUserNamespace) &&
-                    row.SourceUserId > 0 &&
-                    !sourceUserIds.Contains(row.SourceUserId))
-                {
-                    sourceUserIds.Add(row.SourceUserId);
-                }
-            }
-        }
-        catch (Exception)
-        {
-            // Optional governance table absent or drifted; direct binding remains.
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-
         var walks = await _walks.Db.Queryable<IReTourWalkEntity>()
-            .Where(x => sourceUserIds.Contains(x.UserId))
-            .ToListAsync(cancellationToken);
+            .InnerJoin<IReTourDeviceEntity>((w, d) => w.DeviceId == d.Id)
+            .Where((w, d) => w.UserId == context.PatientId && d.BusinessId == patient.BusinessId &&
+                d.DeviceType == IReTourContract.RequiredDeviceType)
+            .OrderBy((w, d) => w.Id, SqlSugar.OrderByType.Desc)
+            .Select((w, d) => w).Take(1001).ToListAsync(cancellationToken);
+        if (walks.Count > 1000) throw new IReTourReadLimitException();
         if (walks.Count == 0)
         {
             return new IReTourRawDataSet
@@ -111,17 +85,18 @@ public sealed class IReTourDataRepository : IIReTourDataRepository
 
         var summaries = await _summaries.Db.Queryable<IReTourSummaryReportEntity>()
             .Where(x => walkIds.Contains(x.PlanId))
-            .ToListAsync(cancellationToken);
+            .Take(5001).ToListAsync(cancellationToken);
 
         var rawReports = await _rawReports.Db.Queryable<IReTourRawReportEntity>()
             .Where(x => walkIds.Contains(x.PlanId))
-            .ToListAsync(cancellationToken);
+            .Take(5001).ToListAsync(cancellationToken);
 
         var cognitive = await _cognitiveReports.Db
             .Queryable<IReTourCognitiveReportEntity>()
             .Where(x => walkIds.Contains(x.PlanId))
-            .ToListAsync(cancellationToken);
+            .Take(5001).ToListAsync(cancellationToken);
 
+        if (summaries.Count > 5000 || rawReports.Count > 5000 || cognitive.Count > 5000) throw new IReTourReadLimitException();
         return new IReTourRawDataSet
         {
             Patient = patient,
@@ -135,3 +110,5 @@ public sealed class IReTourDataRepository : IIReTourDataRepository
         };
     }
 }
+
+public sealed class IReTourReadLimitException : Exception { }

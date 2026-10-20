@@ -26,6 +26,10 @@ builder.Services.Configure<IReGoToolOptions>(
     builder.Configuration.GetSection(IReGoToolOptions.SectionName));
 builder.Services.Configure<IReTourToolOptions>(
     builder.Configuration.GetSection(IReTourToolOptions.SectionName));
+builder.Services.Configure<IReCogToolOptions>(
+    builder.Configuration.GetSection(IReCogToolOptions.SectionName));
+builder.Services.Configure<AssessmentToolOptions>(
+    builder.Configuration.GetSection(AssessmentToolOptions.SectionName));
 builder.Services.Configure<HospitalOperationsOptions>(
     builder.Configuration.GetSection(HospitalOperationsOptions.SectionName));
 builder.Services.Configure<RehabToolsOptions>(
@@ -62,10 +66,9 @@ builder.Services.AddSwaggerGen(options =>
             "面向 Dify 的患者端只读工具。Authorization 由 Dify 工具凭据提供；" +
             "system_context 必须由 Dify 系统/运行时变量注入，不得由 LLM 推断。" +
             "session_ref 只能选择工具已经返回的稳定匿名引用，不得自行编造。" +
-            "唯一患者事实源为 robotdb_main。ReportList 元素统一解释为报告记录分段，" +
-            "临时身份映射只按 project_cpoy 姓名与 robotdb 患者类型解析唯一患者；" +
-            "零命中或多命中均拒绝映射。" +
-            "不得表述为多个独立训练项目。报告图片以稳定 artifact_ref 持久化；" +
+            "按 IReGo、IReTour、IReCog 和线上量表对象组织概览、历史、单次、多次及报表工具。" +
+            "IReGo 使用独立 robot 身份；IReTour/IReCog/线上量表使用 project 身份，网关负责授权。" +
+            "ReportList 元素为报告记录分段，不得表述为多个独立训练项目。报告图片以稳定 artifact_ref 持久化；" +
             "展示地址按需生成，不应写入聊天记录。"
     });
 

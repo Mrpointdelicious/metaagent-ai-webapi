@@ -5,6 +5,7 @@ using AI_WebApi.IServices.BASE;
 using AI_WebApi.Services.BASE;
 using AI_WebApi.IServices.AITools;
 using AI_WebApi.Services.AITools.IReGo;
+using AI_WebApi.Services.AITools.IReTour;
 using AI_WebApi.Services.AITools.HospitalOperations;
 using System.Reflection;
 
@@ -33,6 +34,11 @@ namespace AI_WebApi.Extensions.ServiceExtensions
                 .AsImplementedInterfaces()
                 .InstancePerDependency()
                 .PropertiesAutowired();
+
+            // IReTour's resolvers are concrete dependencies without interfaces.
+            builder.RegisterType<IReTourTimeSemanticResolver>().AsSelf();
+            builder.RegisterType<IReTourTrainingStateResolver>().AsSelf();
+            builder.RegisterType<IReTourReportLinkResolver>().AsSelf();
 
             var assemblysRepository = Assembly.LoadFrom(repositoryDllFile);
             builder.RegisterAssemblyTypes(assemblysRepository)

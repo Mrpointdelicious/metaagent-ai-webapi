@@ -10,6 +10,10 @@ public sealed class IReTourToolOptions
     public string SourceCompleteness { get; set; } = "partial";
     public int HistoryCacheSeconds { get; set; } = 300;
     public int MaxRecentSessions { get; set; } = 10;
+    public string SingleReportTemplateVersion { get; set; } =
+        "iretour-single-v3";
+    public string LongitudinalReportTemplateVersion { get; set; } =
+        "iretour-longitudinal-v3";
 }
 
 /// <summary>
@@ -31,6 +35,8 @@ public static class IReTourContract
 
 public static class IReTourReasonCodes
 {
+    public const string SourceChanged = "IRETOUR_SOURCE_CHANGED";
+    public const string ReadLimitExceeded = "IRETOUR_READ_LIMIT_EXCEEDED";
     public const string InvalidRequest = "INVALID_REQUEST";
     public const string NoIReTourData = "NO_IRETOUR_DATA";
     public const string NoUsableSession = "NO_USABLE_IRETOUR_SESSION";
@@ -57,6 +63,18 @@ public static class IReTourReasonCodes
     public const string LongitudinalWindowTooLarge =
         "IRETOUR_LONGITUDINAL_WINDOW_TOO_LARGE";
     public const string NoComparableMetric = "IRETOUR_NO_COMPARABLE_METRIC";
+    public const string SingleReportRequiresCompletedSession =
+        "IRETOUR_SINGLE_REPORT_REQUIRES_COMPLETED_SESSION";
+    public const string SingleReportHasNoMetrics =
+        "IRETOUR_SINGLE_REPORT_HAS_NO_METRICS";
+    public const string SingleReportQualityBlocked =
+        "IRETOUR_SINGLE_REPORT_QUALITY_BLOCKED";
+    public const string LongitudinalReportInsufficientData =
+        "IRETOUR_LONGITUDINAL_REPORT_INSUFFICIENT_DATA";
+    public const string ReportImageSigningKeyNotConfigured =
+        "IRETOUR_REPORT_IMAGE_SIGNING_KEY_NOT_CONFIGURED";
+    public const string ReportRenderingUnavailable =
+        "IRETOUR_REPORT_RENDERING_UNAVAILABLE";
     public const string SessionRefNotFound = "SESSION_REF_NOT_FOUND";
     public const string SessionRefContextMismatch = "SESSION_REF_CONTEXT_MISMATCH";
     public const string SessionRefSigningKeyNotConfigured =

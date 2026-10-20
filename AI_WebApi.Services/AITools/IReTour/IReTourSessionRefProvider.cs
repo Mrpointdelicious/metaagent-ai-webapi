@@ -85,7 +85,10 @@ public sealed class IReTourSessionRefProvider : IIReTourSessionRefProvider
         }
 
         return candidates.FirstOrDefault(x =>
-            x.CanonicalSessionKey == payload[4] && x.PatientId == patientId);
+            x.CanonicalSessionKey == payload[4] && x.PatientId == patientId &&
+            (x.BusinessId ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture) == payload[2] &&
+            x.PatientBindingVersion.ToString(System.Globalization.CultureInfo.InvariantCulture) == payload[6] &&
+            x.Visible);
     }
 
     private byte[] Hmac(byte[] payload) => HMACSHA256.HashData(

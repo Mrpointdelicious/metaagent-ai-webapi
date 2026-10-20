@@ -1,13 +1,16 @@
 services:
   ai_webapi:
     container_name: ai_webapi
-    image: ai_webapi:local
+    image: ai_webapi:${AI_WEBAPI_IMAGE_TAG:-local}
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        RUNTIME_IMAGE: ${AI_WEBAPI_RUNTIME_IMAGE:-mcr.microsoft.com/dotnet/aspnet:6.0}
+        INSTALL_RUNTIME_DEPENDENCIES: ${AI_WEBAPI_INSTALL_RUNTIME_DEPENDENCIES:-true}
     restart: unless-stopped
     ports:
-      - "5043:8080"
+      - "${AI_WEBAPI_PORT:-5043}:8080"
     env_file:
       - .env.ai_webapi
     environment:

@@ -3,6 +3,12 @@
 .vs/
 .git/
 .claude/
+.codex_tmp/
+.codex-temp/
+.codex-tmp/
+.tmp/
+AgentWorkSpace/
+artifacts/
 tmp/
 outputs/
 **/data/patient-reports/

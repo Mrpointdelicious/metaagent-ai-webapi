@@ -271,5 +271,5 @@ public sealed class IReGoLongitudinalReportArtifactDto
     public string ImageUrl { get; init; } = string.Empty;
     public string DisplayMarkdown { get; init; } = string.Empty;
     public DateTimeOffset? ExpiresAt { get; init; }
-    public string TemplateVersion { get; init; } = "irego-longitudinal-v5";
+    public string TemplateVersion { get; init; } = "irego-longitudinal-v6";
 }

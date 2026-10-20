@@ -23,7 +23,7 @@ public sealed class IReGoReportImageOptions
     public int MaxCacheBytes { get; set; } = 128 * 1024 * 1024;
     public string TemplateVersion { get; set; } = "irego-single-v2";
     public string LongitudinalTemplateVersion { get; set; } =
-        "irego-longitudinal-v5";
+        "irego-longitudinal-v6";
     public string BrowserExecutablePath { get; set; } = "/usr/bin/chromium";
     public int RenderTimeoutSeconds { get; set; } = 30;
     public int MaxConcurrentRenders { get; set; } = 2;

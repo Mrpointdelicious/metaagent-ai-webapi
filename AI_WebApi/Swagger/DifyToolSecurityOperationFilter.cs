@@ -1,4 +1,5 @@
 using AI_WebApi.Model.DTOs.AITools;
+using AI_WebApi.Model.AITools;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -141,6 +142,14 @@ public sealed class DifyToolSecurityOperationFilter : IOperationFilter
                 "返回计划事实、时间事实、白名单汇总指标、质量问题与原始证据存在性；" +
                 "原始传感器数组不返回给模型。单位未签核时 unit 为空，不做临床解释。";
         }
+        else if (operation.OperationId == "generate_iretour_single_session_report")
+        {
+            operation.Summary = "生成单次 IReTour 训练报告图片";
+            operation.Description =
+                "只接受 IReTour 工具已经返回的 session_ref。后端重新校验患者归属、" +
+                "完整完成状态、汇总结果和数据质量，按与 IReGo 单次报告统一的固定模板生成 PNG。" +
+                "调用方提交 ai_evaluation 或 report_type 会被拒绝。";
+        }
         else if (operation.OperationId == "get_iretour_longitudinal_analysis")
         {
             operation.Summary = "按语义窗口比较同类 IReTour 训练";
@@ -149,7 +158,35 @@ public sealed class DifyToolSecurityOperationFilter : IOperationFilter
                 "值为 null；首版只给出数值方向（increased/decreased/unchanged/fluctuating），" +
                 "interpretation_status 固定为 not_evaluated，不生成疗效或诊断结论。";
         }
+        else if (operation.OperationId == "generate_iretour_longitudinal_report")
+        {
+            operation.Summary = "生成连续 IReTour 训练统合汇报图片";
+            operation.Description =
+                "后端按语义窗口解析同一 activity_scope 的训练，至少三条同指标有效记录才生成图片。" +
+                "版式、时间位置、缺失点和折线展示与 IReGo 统合汇报一致；" +
+                "只描述数值方向，不生成疗效或诊断结论。";
+        }
 
+        if (operation.OperationId?.Contains("irecog", StringComparison.Ordinal) == true)
+        {
+            operation.Summary = "读取 IReCog 关联测评记录或生成记录汇总报表";
+            operation.Description = "仅读取同患者、同机构 DeviceType=5 的关联记录；只展示源报告总分。" +
+                "量表身份、版本、范围和计分方向未核验；多次汇总不计算分数趋势、均值或临床结论。" +
+                "不返回题目、答案和原始 JSON。报表应传入上次分析返回的 expected_source_snapshot；" +
+                "数据变化时返回 IRECOG_SOURCE_CHANGED。system_context 由可信网关注入。";
+        }
+        if (operation.OperationId?.StartsWith("generate_iretour_", StringComparison.Ordinal) == true)
+            operation.Description += " expected_source_snapshot 应由调用方绑定上次分析快照；变化时拒绝生成。";
+
+        var family = PatientToolFamilies.Find(operation.OperationId);
+        if (family != null) operation.Tags = new List<OpenApiTag> { new() { Name = family.ObjectType } };
+        if (family?.ObjectType == "assessment")
+        {
+            operation.Summary = "线上量表：" + family.Tools.First(p => p.Value == operation.OperationId).Key;
+            operation.Description = "独立线上量表工具族，使用 project 患者及机构范围，排除设备训练和已识别线上游戏。" +
+                "总分为来源记录，不返回题目答案或 ScoreExplain；计分规则和版本未经核验，不进行跨量表算术汇总或疗效判断。" +
+                "assessment_ref 必须来自历史/分析；报表必须绑定 expected_source_snapshot，数据变化时拒绝生成。";
+        }
         KeepOnlyApplicationJson(operation);
 
         operation.Security.Add(new OpenApiSecurityRequirement
@@ -224,12 +261,31 @@ public sealed class DifySystemContextSchemaFilter : ISchemaFilter
             Remove(schema, "ai_evaluation", "report_type");
         }
 
+        if (context.Type == typeof(GenerateIReTourSingleSessionReportRequestDto))
+        {
+            Remove(schema, "ai_evaluation", "report_type");
+        }
+
+        if (context.Type == typeof(GenerateIReTourLongitudinalReportRequestDto))
+        {
+            Remove(schema, "report_type");
+        }
+
         if (context.Type == typeof(GetMultisourcePatientContextRequestDto) ||
             context.Type == typeof(GetIReGoSessionAnalysisRequestDto) ||
             context.Type == typeof(GenerateIReGoSingleSessionReportRequestDto) ||
             context.Type == typeof(GetIReGoPatientHistoryRequestDto) ||
             context.Type == typeof(GetIReGoLongitudinalAnalysisRequestDto) ||
-            context.Type == typeof(GenerateIReGoLongitudinalReportRequestDto))
+            context.Type == typeof(GenerateIReGoLongitudinalReportRequestDto) ||
+            context.Type == typeof(GetIReTourPatientContextRequestDto) ||
+            context.Type == typeof(GetIReTourPatientHistoryRequestDto) ||
+            context.Type == typeof(GetIReTourSessionAnalysisRequestDto) ||
+            context.Type == typeof(GenerateIReTourSingleSessionReportRequestDto) ||
+            context.Type == typeof(GetIReTourLongitudinalAnalysisRequestDto) ||
+            context.Type == typeof(GenerateIReTourLongitudinalReportRequestDto) ||
+            context.Type == typeof(IReCogRequestDto) ||
+            context.Type == typeof(AssessmentToolRequestDto) ||
+            context.Type == typeof(AI_WebApi.Controllers.TrainingOverviewRequestDto))
         {
             schema.Properties["system_context"] = BuildSystemContextSchema();
             schema.Required.Add("system_context");
@@ -295,6 +351,16 @@ public sealed class DifySystemContextSchemaFilter : ISchemaFilter
                 schema,
                 "session_ref",
                 "[TOOL OUTPUT ONLY] 必须选择患者上下文工具已经返回的会话引用，禁止自行编造。",
+                "tool_output");
+        }
+
+        if (context.Type == typeof(GenerateIReTourSingleSessionReportRequestDto))
+        {
+            schema.Required.Add("session_ref");
+            Annotate(
+                schema,
+                "session_ref",
+                "[TOOL OUTPUT ONLY] 必须选择 IReTour context 或 history 工具已经返回的会话引用，禁止自行编造。",
                 "tool_output");
         }
 
@@ -368,6 +434,23 @@ public sealed class DifySystemContextSchemaFilter : ISchemaFilter
                 schema,
                 "project_scope",
                 "all、walking、sit_stand、games 或 balance；决定图片包含的同项目模块。");
+        }
+
+        if (context.Type == typeof(GenerateIReTourLongitudinalReportRequestDto))
+        {
+            Describe(
+                schema,
+                "selection_mode",
+                "受控语义选择：latest_count、recent_ordinal_range 或 date_range。report_type 由端点固定。 ");
+            Describe(schema, "report_count", "latest_count 使用，取值3—20。");
+            Describe(
+                schema,
+                "activity_scope",
+                "必须指定一个 IReTour 训练类别，只比较同项目、同定义指标。 ");
+            Describe(schema, "start_ordinal", "仅 recent_ordinal_range 使用，范围至少包含3条记录。");
+            Describe(schema, "end_ordinal", "仅 recent_ordinal_range 使用，范围最多20条记录。");
+            Describe(schema, "start_date", "仅 date_range 使用，必须与 end_date 同时提供。");
+            Describe(schema, "end_date", "仅 date_range 使用，日期范围最多180天。");
         }
 
         if (context.Type == typeof(IReGoLongitudinalMetricPointDto))

@@ -78,7 +78,7 @@ public sealed class IReTourSessionAnalysisService : IIReTourSessionAnalysisServi
             }
         }
 
-        var summaryRow = VerifiedSummaryRow(evaluation, selected);
+        var summaryRow = IReTourSummarySelection.Verified(evaluation, selected);
         var metrics = new List<IReTourMetricFact>();
         var parameters = new List<IReTourPlanParameterDto>();
         var issues = selected.Issues.ToList();
@@ -145,6 +145,8 @@ public sealed class IReTourSessionAnalysisService : IIReTourSessionAnalysisServi
                     RawValue = x.RawValue,
                     NormalizedValue = x.NormalizedValue,
                     Unit = x.Unit,
+                    SourceField = x.SourceField,
+                    UnitStatus = x.Unit == null ? "unconfirmed" : "confirmed",
                     ValueStatus = x.ValueStatus,
                     RegistryVersion = IReTourContract.MetricRegistryVersion
                 }).ToList(),
@@ -157,7 +159,9 @@ public sealed class IReTourSessionAnalysisService : IIReTourSessionAnalysisServi
             },
             Quality = new IReTourSessionQualityDto
             {
-                Usable = !issues.Any(x => x.Severity == "error"),
+                Usable = selected.ExecutionState == IReTourExecutionStates.Completed &&
+                    metrics.Any(x => x.ValueStatus == "valid" && x.NormalizedValue.HasValue) &&
+                    !issues.Any(x => x.Severity == "error"),
                 IssueCount = issues.Count,
                 Issues = issues
             },
@@ -172,10 +176,12 @@ public sealed class IReTourSessionAnalysisService : IIReTourSessionAnalysisServi
             }
         };
 
+        data.Interpretation = IReTourReadingBuilder.Single(data);
+        data.SourceSnapshot = IReTourReportContentFingerprint.SingleSourceSnapshot(data);
         return ToolResponseDto<IReTourSessionAnalysisDto>.Create(
             "get_iretour_session_analysis",
             requestId,
-            ToolStatuses.Success,
+            data.Quality.Usable ? ToolStatuses.Success : ToolStatuses.Partial,
             data,
             null,
             IReTourToolMeta.Build(_options));
@@ -190,12 +196,12 @@ public sealed class IReTourSessionAnalysisService : IIReTourSessionAnalysisServi
             cancellationToken.ThrowIfCancellationRequested();
             if (!session.Visible ||
                 session.ResultState != IReTourResultStates.SummaryAvailable ||
-                session.ExecutionState == IReTourExecutionStates.ExecutionUnknown)
+                session.ExecutionState != IReTourExecutionStates.Completed)
             {
                 continue;
             }
 
-            var row = VerifiedSummaryRow(evaluation, session);
+            var row = IReTourSummarySelection.Verified(evaluation, session);
             if (row?.Details == null)
             {
                 continue;
@@ -208,7 +214,8 @@ public sealed class IReTourSessionAnalysisService : IIReTourSessionAnalysisServi
             }
 
             var parsed = IReTourSummaryExtraction.Parse(row.Details, parser);
-            if (parsed.Issues.Any(x => x.Severity == "error") || parsed.Metrics.Count == 0)
+            if (parsed.Issues.Any(x => x.Severity == "error") ||
+                !parsed.Metrics.Any(x => x.ValueStatus == "valid" && x.NormalizedValue.HasValue))
             {
                 continue;
             }
@@ -217,19 +224,6 @@ public sealed class IReTourSessionAnalysisService : IIReTourSessionAnalysisServi
         }
 
         return null;
-    }
-
-    private static IReTourSummaryReportEntity? VerifiedSummaryRow(
-        IReTourEvaluationResult evaluation,
-        IReTourEvaluatedSession session)
-    {
-        if (!evaluation.SummaryReportsByWalk.TryGetValue(session.WalkId, out var rows))
-        {
-            return null;
-        }
-
-        var matching = rows.Where(x => x.ItemId == session.ItemId).ToList();
-        return matching.Count == 1 ? matching[0] : null;
     }
 
     private static string StateConfidence(IReTourEvaluatedSession session) =>

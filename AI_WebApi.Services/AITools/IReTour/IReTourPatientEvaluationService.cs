@@ -45,12 +45,13 @@ public sealed class IReTourPatientEvaluationService : IIReTourPatientEvaluationS
             .ToDictionary(x => x.Key, x => (IReadOnlyList<IReTourSummaryReportEntity>)
                 x.ToList());
 
-        if (data.Patient == null || !data.Binding.Verified)
+        if (data.Patient == null || data.Patient.Id != context.PatientId ||
+            data.Patient.Status != 1 || data.Patient.IsDeleted != 0 || !data.Binding.Verified)
         {
             return new IReTourEvaluationResult
             {
-                PatientExists = data.Patient != null,
-                BindingVerified = data.Binding.Verified,
+                PatientExists = false,
+                BindingVerified = false,
                 SummaryReportsByWalk = summaryByWalk
             };
         }
@@ -82,7 +83,9 @@ public sealed class IReTourPatientEvaluationService : IIReTourPatientEvaluationS
 
         var deviceVerified =
             data.Devices.TryGetValue(walk.DeviceId, out var device) &&
-            device.DeviceType == IReTourContract.RequiredDeviceType;
+            device.DeviceType == IReTourContract.RequiredDeviceType &&
+            data.Patient!.BusinessId is > 0 && device.BusinessId == data.Patient.BusinessId &&
+            walk.UserId == data.Patient.Id;
         if (!deviceVerified)
         {
             issues.Add(new ToolIssueDto

@@ -7,6 +7,7 @@ namespace AI_WebApi.Model.Entities;
 /// They intentionally remain separate from the legacy project-schema entities.
 /// </summary>
 [SugarTable("users")]
+[Tenant("robotdb_main")]
 public sealed class RobotDbMainUserEntity
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
@@ -22,6 +23,7 @@ public sealed class RobotDbMainUserEntity
 }
 
 [SugarTable("rehabplan")]
+[Tenant("robotdb_main")]
 public sealed class RobotDbMainRehabPlanEntity
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
@@ -50,6 +52,7 @@ public sealed class RobotDbMainRehabPlanEntity
 }
 
 [SugarTable("report")]
+[Tenant("robotdb_main")]
 public sealed class RobotDbMainReportEntity
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = false)]
@@ -61,6 +64,7 @@ public sealed class RobotDbMainReportEntity
 }
 
 [SugarTable("templates")]
+[Tenant("robotdb_main")]
 public sealed class RobotDbMainTemplateEntity
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
@@ -78,6 +82,7 @@ public sealed class RobotDbMainTemplateEntity
 }
 
 [SugarTable("vendor")]
+[Tenant("robotdb_main")]
 public sealed class RobotDbMainVendorEntity
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
@@ -87,6 +92,7 @@ public sealed class RobotDbMainVendorEntity
 }
 
 [SugarTable("reportdata_new")]
+[Tenant("robotdb_main")]
 public sealed class RobotDbMainReportDataNewEntity
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
@@ -108,6 +114,7 @@ public sealed class RobotDbMainReportDataNewEntity
 }
 
 [SugarTable("reportdata")]
+[Tenant("robotdb_main")]
 public sealed class RobotDbMainLegacyReportDataEntity
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = false)]

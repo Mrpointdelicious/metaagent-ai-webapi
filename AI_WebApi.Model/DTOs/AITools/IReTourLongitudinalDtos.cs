@@ -21,6 +21,9 @@ public sealed class GetIReTourLongitudinalAnalysisRequestDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourLongitudinalAnalysisDto
 {
+    public string SourceSnapshot { get; set; } = string.Empty;
+    public IReTourReadingDto Interpretation { get; set; } = new();
+    public IReadOnlyList<ToolIssueDto> Issues { get; init; } = Array.Empty<ToolIssueDto>();
     public string PatientRef { get; init; } = string.Empty;
     public IReTourLongitudinalWindowDto Window { get; init; } = new();
     public IReadOnlyList<IReTourLongitudinalSessionDto> Sessions { get; init; } =
@@ -35,6 +38,8 @@ public sealed class IReTourLongitudinalAnalysisDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourLongitudinalWindowDto
 {
+    public int ExcludedSessionCount { get; init; }
+    public string SelectionBasis { get; init; } = "visible_activity_history_including_missing_results";
     public string SelectionMode { get; init; } = string.Empty;
     public int RequestedCount { get; init; }
     public int ResolvedCount { get; init; }
@@ -47,6 +52,7 @@ public sealed class IReTourLongitudinalWindowDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourLongitudinalSessionDto
 {
+    public IReadOnlyList<string> ExclusionReasonCodes { get; init; } = Array.Empty<string>();
     public int Ordinal { get; init; }
     public string SessionRef { get; init; } = string.Empty;
     public DateTimeOffset? SessionTime { get; init; }
@@ -58,6 +64,10 @@ public sealed class IReTourLongitudinalSessionDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourMetricSeriesDto
 {
+    public string SourceField { get; init; } = string.Empty;
+    public string ComparisonKey { get; init; } = string.Empty;
+    public string UnitStatus { get; init; } = "unconfirmed";
+    public string ComparisonStatus { get; init; } = "descriptive_same_source_field";
     public string MetricCode { get; init; } = string.Empty;
     public string DisplayName { get; init; } = string.Empty;
     public string? Unit { get; init; }
