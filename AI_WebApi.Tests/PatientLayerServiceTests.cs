@@ -51,6 +51,21 @@ public sealed class PatientLayerServiceTests
     }
 
     [Fact]
+    public async Task ProfileUsesTheSameScopedPatientReferenceAsOtherLayers()
+    {
+        var devices = new Devices();
+        var service = new PatientLayerService(new Repository(), devices, devices);
+        var context = new TrustedPatientContext
+        {
+            PatientId = 7, Access = new PatientAccessContext("unit-test-key")
+            { ScopeFingerprint = "confirmed-scope", UserIds = new[] { 7, 8 } }
+        };
+        var response = await service.ProfileAsync(context, "r", default);
+        Assert.Equal(context.PatientRef, response.Data!.PatientRef);
+        Assert.StartsWith("patient_scope_v2_", response.Data.PatientRef);
+    }
+
+    [Fact]
     public async Task RehabUsesOneResolvedProjectContextAcrossDeviceFamilies()
     {
         var devices = new Devices();

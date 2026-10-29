@@ -2,6 +2,8 @@
 
 核查日期：2026-10-29。核查基线为拉取后的 `origin/main` 提交 `2a08efe7bedc2e8e0999fe90c268b97b1bea180b`（Merge pull request #4）。本次通过 `git show` / `git grep` 读取提交，不读取功能分支作为基线，不修改 MetaAgent 工作区。
 
+后续实施：已在 MetaAgent 基于该 main 的 `codex/patient-rehab-v2` 分支完成适配，并按用户新要求执行真实联调。下文保留为原始核查清单；实施与测试见 [MetaAgent 联调记录](https://github.com/Mrpointdelicious/metaAgent/blob/codex/patient-rehab-v2/docs/patient-rehab-v2-adaptation-and-integration-20261029.md)。
+
 结论：当前 main 不能直接调用这一版 AI_WebApi。阻断点包括旧身份请求、旧版本白名单、旧 patient_ref 推导和缺少新登录凭证。患者工具统一使用契约 `2.0.0`，不保留旧输入/输出格式。
 
 ## HTTP 地址与统一请求
@@ -66,4 +68,4 @@ LoginName 使用 `{"type":"login_name","value":"000007"}`，完整保留字符�
 5. 全部报告绑定同轮快照，数据变更重读分析后再生成。
 6. 制品 URL 过期刷新、保留授权查询串、同引用的新地址不被去重丢弃。
 
-本次仅完成代码考察和改动清单，尚未对 MetaAgent main 实施这些修改。按用户要求，本次移除旧契约后不进行 smoke test，也不启动 MetaAgent/AI_WebApi HTTP 联调探测。
+首次核查时仅输出改动清单，按当时要求未进行 smoke test。用户后续要求同步适配并进行联调；后续已完成 11 项真实 HTTP 联调用例及两轮真实模型联调，并修复基本档案患者引用遗漏。数据库仍只读，现有演示服务未切换。

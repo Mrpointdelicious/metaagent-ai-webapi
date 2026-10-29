@@ -37,7 +37,6 @@ public sealed class PatientLayerService : IPatientLayerService
         return patient?.IsDeleted == true ? null : patient;
     }
 
-    private static string Ref(int id) => $"project:{id}";
     private static PatientLayerPageDto Page(int number, int size, int count) => new()
     {
         PageNumber = number, PageSize = size, TotalItems = count, HasNext = number * size < count
@@ -113,7 +112,7 @@ public sealed class PatientLayerService : IPatientLayerService
         if (patient.Status == -1) limitations.Add("这是历史账号的记录。");
         return Envelope("get_patient_profile", requestId, new PatientProfileDto
         {
-            PatientRef = Ref(patient.Id), Profile = facts, Limitations = limitations
+            PatientRef = context.PatientRef, Profile = facts, Limitations = limitations
         });
     }
 
