@@ -30,7 +30,7 @@ internal static class IReGoArtifactReference
             templateVersion);
         var artifactKey = Hmac(masterKey, ArtifactKeyPurpose);
         var signature = Hmac(artifactKey, payload);
-        return Version2Prefix +
+        return (patientRef.StartsWith("patient_scope_v2_", StringComparison.Ordinal) ? "irego_scope_v2_" : Version2Prefix) +
                Convert.ToHexString(signature).ToLowerInvariant();
     }
 
@@ -42,7 +42,7 @@ internal static class IReGoArtifactReference
         }
 
         return HasHexBody(artifactRef, Version1Prefix, 32) ||
-               HasHexBody(artifactRef, Version2Prefix, 64);
+               HasHexBody(artifactRef, Version2Prefix, 64) || HasHexBody(artifactRef, "irego_scope_v2_", 64);
     }
 
     private static byte[] CanonicalPayload(
@@ -56,7 +56,7 @@ internal static class IReGoArtifactReference
         {
             writer.WriteStartObject();
             writer.WriteString("artifact_schema", "irego-artifact-v2");
-            writer.WriteString("source_namespace", "robotdb_main");
+            writer.WriteString("source_namespace", "project.dbrehaplan:20261023");
             writer.WriteString("patient_ref", patientRef.Trim());
             writer.WriteString("training_scope_ref", trainingScopeRef.Trim());
             writer.WriteString("source_snapshot", sourceSnapshot.Trim());

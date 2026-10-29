@@ -41,14 +41,14 @@ public sealed class AssessmentToolService : IAssessmentToolService
         if (_options.ReferenceSigningKey.Length < 32) return Fail("ASSESSMENT_SIGNING_KEY_NOT_CONFIGURED", "量表工具尚未配置引用签名。");
         var source = await _repository.LoadAsync(context, cancellationToken);
         var patient = source.Patient;
-        if (patient == null || patient.Id != context.PatientId || patient.Status != 1 || patient.IsDeleted != 0 || patient.BusinessId is not > 0)
+        if (patient == null || patient.Id != context.PatientId || patient.Status != 1 || patient.IsDeleted != 0 || context.Access == null && patient.BusinessId is not > 0)
             return Fail("ASSESSMENT_PATIENT_SCOPE_UNAVAILABLE", "无法确认当前患者数据范围。");
         var projected = new List<Projected>();
-        foreach (var plan in source.Plans.Where(p => p.UserId == patient.Id && p.BusinessId == patient.BusinessId &&
+        foreach (var plan in source.Plans.Where(p => (context.Access != null ? context.Access.AllowsOwner(p.UserId) && context.Access.AllowsTenant(p.BusinessId) : p.UserId == patient.Id && p.BusinessId == patient.BusinessId) &&
             p.DeviceId == -1 && p.TemplateId is 0 or -1))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var item = Project(plan, source.Reports.Where(r => r.PlanId == plan.Id).OrderBy(r => r.Id).ToArray(), patient.BusinessId.Value);
+            var item = Project(plan, source.Reports.Where(r => r.PlanId == plan.Id).OrderBy(r => r.Id).ToArray(), context.Access == null ? patient.BusinessId!.Value : plan.BusinessId ?? 0, context);
             if (item != null) projected.Add(item);
         }
         var rows = projected.Where(p => request.ScaleType == null || p.Record.ScaleType == request.ScaleType)
@@ -115,7 +115,7 @@ public sealed class AssessmentToolService : IAssessmentToolService
         return Response(tool, requestId, reasons.Count == 0 ? ToolStatuses.Success : ToolStatuses.Partial, data, reasons);
     }
 
-    private Projected? Project(RehabPlanEntity plan, RehabReportEntity[] reports, int institution)
+    private Projected? Project(RehabPlanEntity plan, RehabReportEntity[] reports, int institution, TrustedPatientContext context)
     {
         var reasons = new List<string>();
         int? type = null;
@@ -178,7 +178,8 @@ public sealed class AssessmentToolService : IAssessmentToolService
         var uploadTime = reports.Select(r => Time(r.CreateTime)).Where(t => t.HasValue).OrderByDescending(t => t).FirstOrDefault();
         var record = new AssessmentRecordDto
         {
-            AssessmentRef = "assessment_s_v1_" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(_options.ReferenceSigningKey), Encoding.UTF8.GetBytes($"assessment|project|{institution}|{plan.UserId}|{plan.Id}"))).ToLowerInvariant(),
+            AssessmentRef = "assessment_s_v1_" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(_options.ReferenceSigningKey), Encoding.UTF8.GetBytes($"assessment|project|{institution}|{plan.UserId}|{plan.Id}" + (context.Access == null ? string.Empty : "|scope:" + context.Access.ScopeFingerprint)))).ToLowerInvariant(),
+            RecordTenant = plan.RecordTenant, OwnerUserRef = plan.OwnerUserRef,
             ScaleType = !string.IsNullOrEmpty(planName) && !planIdentity ? null : type,
             ScaleName = type.HasValue && (planIdentity || identity == "catalog_and_report_match") ? AssessmentScaleCatalog.Names[type.Value] : null,
             IdentityStatus = identity, AssessmentOrigin = plan.DoctorId is not > 0 ? "unknown" : plan.DoctorId == plan.UserId ? "self" : "clinician_assigned",
@@ -214,6 +215,7 @@ public sealed class AssessmentToolService : IAssessmentToolService
         var url = origin.TrimEnd('/') + "/api/ai/patients/report-artifacts/" + Uri.EscapeDataString(reference) + "/content";
         return Response(tool, requestId, analysis.Status, new AssessmentReportArtifactDto
         {
+            TenantSegments = AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.Segments(data, context.Access),
             ArtifactRef = reference, ImageUrl = url, DisplayMarkdown = $"![线上量表记录]({url})", SourceSnapshot = data.SourceSnapshot,
             TemplateVersion = _options.ReportTemplateVersion, StorageMode = _artifacts.StorageMode
         }, analysis.ReasonCodes);
@@ -231,7 +233,7 @@ public sealed class AssessmentToolService : IAssessmentToolService
                 .Append(r.ResultState switch { "reported_total_unverified" => "有源总分，计分语义待核验", "no_result" => "缺少结果", "conflicting" => "报告内容冲突", "identity_conflict" => "量表身份待核对", "invalid_score" => "分数无效", _ => "结构尚未支持" }).Append("</td></tr>");
         html.Append("</table><section class=\"note\"><h2>解读范围与待核对事项</h2><ul>");
         foreach (var note in data.Interpretation.Limitations.Concat(data.Interpretation.NextChecks)) html.Append("<li>").Append(E(note)).Append("</li>");
-        return html.Append("</ul></section><p><small>数据快照 ").Append(E(data.SourceSnapshot)).Append("</small></p></main></html>").ToString();
+        return AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.AddToHtml(html.Append("</ul></section><p><small>数据快照 ").Append(E(data.SourceSnapshot)).Append("</small></p></main></html>").ToString(), data);
     }
 
     private sealed record Projected(AssessmentRecordDto Record, string Revision);

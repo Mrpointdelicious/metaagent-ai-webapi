@@ -22,7 +22,7 @@ public sealed class IReTourToolOptions
 /// </summary>
 public static class IReTourContract
 {
-    public const string Version = "iretour-1.0.0";
+    public const string Version = "iretour-2.0.0";
     public const string DeviceRegistryVersion = "iretour-device-1.0.0";
     public const string SchemaRegistryVersion = "iretour-schema-1.0.0";
     public const string MetricRegistryVersion = "iretour-metric-1.0.0";

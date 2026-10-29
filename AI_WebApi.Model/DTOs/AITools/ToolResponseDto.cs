@@ -18,6 +18,10 @@ public sealed class ToolResponseDto<T>
     public IReadOnlyList<string> ReasonCodes { get; init; } = Array.Empty<string>();
     public string? PatientMessage { get; init; }
     public ToolMetaDto Meta { get; init; } = new();
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public PatientQueryScopeDto? QueryScope { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public IReadOnlyList<PatientTenantSegmentDto>? TenantSegments { get; set; }
 
     public static ToolResponseDto<T> Create(
         string toolName,
@@ -82,7 +86,7 @@ public static class ToolStatuses
 
 public static class IReGoContract
 {
-    public const string Version = "1.6.0";
+    public const string Version = "2.0.0";
     public const string DeviceRegistryVersion = "robotdb-main-device-1.0.0";
     public const string SchemaRegistryVersion = "robotdb-main-schema-1.0.0";
     public const string MetricRegistryVersion = "robotdb-main-metric-2.0.0";

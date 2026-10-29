@@ -8,7 +8,7 @@ namespace AI_WebApi.Controllers;
 
 [ApiController]
 [Route("api/ai/patients/tools")]
-[ApiExplorerSettings(GroupName = "ai-patient-tools-v1")]
+[ApiExplorerSettings(GroupName = "ai-patient-tools-v2")]
 [Produces("application/json")]
 public sealed class PatientLayerToolsController : ControllerBase
 {

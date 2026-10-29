@@ -84,8 +84,8 @@ public sealed class IReTourPatientEvaluationService : IIReTourPatientEvaluationS
         var deviceVerified =
             data.Devices.TryGetValue(walk.DeviceId, out var device) &&
             device.DeviceType == IReTourContract.RequiredDeviceType &&
-            data.Patient!.BusinessId is > 0 && device.BusinessId == data.Patient.BusinessId &&
-            walk.UserId == data.Patient.Id;
+            (data.ScopedOwnershipVerified || data.Patient!.BusinessId is > 0 && device.BusinessId == data.Patient.BusinessId &&
+            walk.UserId == data.Patient.Id);
         if (!deviceVerified)
         {
             issues.Add(new ToolIssueDto
@@ -169,7 +169,7 @@ public sealed class IReTourPatientEvaluationService : IIReTourPatientEvaluationS
             CanonicalSessionKey = $"walk:{walk.Id}",
             WalkId = walk.Id,
             PatientId = data.Patient!.Id,
-            BusinessId = data.Patient.BusinessId,
+            BusinessId = data.ScopedOwnershipVerified ? walk.VerifiedBusinessId : data.Patient.BusinessId,
             PatientBindingNamespace = data.Binding.SourceUserNamespace,
             PatientBindingVersion = data.Binding.BindingVersion,
             ItemId = walk.ItemId,

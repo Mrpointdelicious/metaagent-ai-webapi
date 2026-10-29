@@ -13,18 +13,21 @@ namespace AI_WebApi.Services.AITools.IReGo;
 /// </summary>
 public sealed class IReGoSessionRefProvider : IIReGoSessionRefProvider
 {
-    private const string Version = "v1";
-    private const string Prefix = "irego_s_v1_";
-    private const string PlanPrefix = "irego_p_v1_";
-    private const string PatientPrefix = "irego_patient_v1_";
-    private const string TenantPrefix = "irego_tenant_v1_";
-    private const string SourceSystem = "robotdb_main";
+    private const string Version = "v2";
+    private const string Prefix = "irego_s_v2_";
+    private const string PlanPrefix = "irego_p_v2_";
+    private const string PatientPrefix = "irego_patient_v2_";
+    private const string TenantPrefix = "irego_tenant_v2_";
+    private const string SourceSystem = "project.dbrehaplan:20261023";
     private const int SignatureByteCount = 16;
 
     private readonly byte[] _key;
+    private readonly IPatientAccessContextAccessor? _access;
+    private string ScopeSalt => _access?.Current is { } a ? "|scope:" + a.ScopeFingerprint : string.Empty;
 
-    public IReGoSessionRefProvider(IOptions<IReGoToolOptions> options)
+    public IReGoSessionRefProvider(IOptions<IReGoToolOptions> options, IPatientAccessContextAccessor? access = null)
     {
+        _access = access;
         _key = Encoding.UTF8.GetBytes(
             options.Value.SessionRefSigningKey?.Trim() ?? string.Empty);
     }
@@ -51,10 +54,12 @@ public sealed class IReGoSessionRefProvider : IIReGoSessionRefProvider
             reportId,
             schemaSignature);
         using var hmac = new HMACSHA256(_key);
-        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload + ScopeSalt));
         var signature = Convert.ToHexString(
             hash.AsSpan(0, SignatureByteCount)).ToLowerInvariant();
-        return $"{Prefix}{signature}";
+        var reference = $"{Prefix}{signature}";
+        _access?.Current?.BindReference(reference, $"project.dbrehaplan:{planId}");
+        return reference;
     }
 
     public bool Matches(
@@ -113,14 +118,18 @@ public sealed class IReGoSessionRefProvider : IIReGoSessionRefProvider
             patientId.ToString(CultureInfo.InvariantCulture),
             planId.ToString(CultureInfo.InvariantCulture));
         using var hmac = new HMACSHA256(_key);
-        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload + ScopeSalt));
         var signature = Convert.ToHexString(
             hash.AsSpan(0, SignatureByteCount)).ToLowerInvariant();
-        return $"{PlanPrefix}{signature}";
+        var reference = $"{PlanPrefix}{signature}";
+        _access?.Current?.BindReference(reference, $"project.dbrehaplan:{planId}");
+        return reference;
     }
 
     public string CreatePatient(int? tenantId, int patientId) =>
-        CreateSubjectReference(
+        _access?.Current is { } access
+            ? access.Reference("patient_scope_v2", access.ScopeFingerprint)
+            : CreateSubjectReference(
             PatientPrefix,
             "patient",
             tenantId?.ToString(CultureInfo.InvariantCulture) ?? "none",
@@ -145,6 +154,7 @@ public sealed class IReGoSessionRefProvider : IIReGoSessionRefProvider
         var payload = string.Join(
             "|",
             new[] { Version, SourceSystem }.Concat(components));
+        if (prefix == PatientPrefix && _access?.Current != null) { payload += ScopeSalt; prefix = "patient_scope_v2_"; }
         using var hmac = new HMACSHA256(_key);
         var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
         var signature = Convert.ToHexString(

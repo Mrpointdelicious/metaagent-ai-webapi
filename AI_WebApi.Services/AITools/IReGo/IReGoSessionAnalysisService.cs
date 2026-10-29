@@ -204,7 +204,6 @@ public sealed class IReGoSessionAnalysisService : IIReGoSessionAnalysisService
             },
             Overview = new IReGoSessionOverviewDto
             {
-                ReportItemCount = session.ParsedReport.ReportItemCount,
                 ReportBlockCount = session.ParsedReport.ReportBlockCount,
                 ReportBlockLabel = "报告记录分段数",
                 ContentTypes = session.ParsedReport.ContentTypes,
@@ -244,15 +243,6 @@ public sealed class IReGoSessionAnalysisService : IIReGoSessionAnalysisService
                     reportBlocks),
             CurrentPerformanceFacets = BuildCurrentPerformanceFacets(
                 reportBlocks),
-            DirectTraining = ApplyDetailLevel(
-                session.ParsedReport.DirectTraining,
-                request.DetailLevel),
-            Games = ApplyDetailLevel(
-                session.ParsedReport.Games,
-                request.DetailLevel),
-            Assessments = ApplyDetailLevel(
-                session.ParsedReport.Assessments,
-                request.DetailLevel),
             PlanReportComparison = comparison,
             Mapping = new IReGoMappingDto(),
             Quality = new QualitySummaryDto
@@ -273,21 +263,21 @@ public sealed class IReGoSessionAnalysisService : IIReGoSessionAnalysisService
                 new IReGoSourceDto
                 {
                     SourceSystem = evaluation.Raw.SourceSystem,
-                    SourceObject = "robotdb_main.rehabplan",
+                    SourceObject = "project.dbrehaplan",
                     Role = "plan_and_state",
                     Completeness = evaluation.Raw.SourceCompleteness
                 },
                 new IReGoSourceDto
                 {
                     SourceSystem = evaluation.Raw.SourceSystem,
-                    SourceObject = "robotdb_main.report.details",
+                    SourceObject = "project.dbreport.ReportDetails",
                     Role = "session_report",
                     Completeness = evaluation.Raw.SourceCompleteness
                 },
                 new IReGoSourceDto
                 {
                     SourceSystem = evaluation.Raw.SourceSystem,
-                    SourceObject = "robotdb_main.templates + users + vendor",
+                    SourceObject = "project.dbtemplates + dbuser + dbdevice",
                     Role = "classification_and_identity_closure",
                     Completeness = evaluation.Raw.SourceCompleteness
                 }
@@ -295,6 +285,9 @@ public sealed class IReGoSessionAnalysisService : IIReGoSessionAnalysisService
         };
 
         var reasons = allIssues.Select(x => x.Code).Distinct().ToList();
+
+        AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.Annotate(data, context.Access);
+        data.SourceSnapshot = AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.SourceSnapshot(data, context.Access);
 
         return ToolResponseDto<IReGoSessionAnalysisDto>.Create(
             "get_irego_session_analysis",

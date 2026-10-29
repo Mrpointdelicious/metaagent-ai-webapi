@@ -1,3 +1,4 @@
+using AI_WebApi.Model.DTOs.AITools;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
@@ -9,12 +10,12 @@ public sealed record PatientToolFamily(string ObjectType, string IdentitySource,
 
 public static class PatientToolFamilies
 {
-    public const string Version = "patient-tool-families-1.0.0";
+    public const string Version = "patient-tool-families-2.0.0";
     public static IReadOnlyList<PatientToolFamily> All { get; } = new[]
     {
-        Family("irego", "robot", "1.6.0"),
-        Family("iretour", "project", "iretour-1.0.0"),
-        Family("irecog", "project", "irecog-1.0.0"),
+        Family("irego", "project", IReGoContract.Version),
+        Family("iretour", "project", "iretour-2.0.0"),
+        Family("irecog", "project", "irecog-2.0.0"),
         new PatientToolFamily("assessment", "project", AssessmentToolOptions.ContractVersion, "implemented", new Dictionary<string, string>
         {
             ["overview"] = "get_assessment_patient_context", ["history"] = "get_assessment_patient_history",

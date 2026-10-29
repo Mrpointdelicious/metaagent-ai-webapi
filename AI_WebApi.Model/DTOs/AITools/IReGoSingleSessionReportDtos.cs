@@ -6,7 +6,9 @@ namespace AI_WebApi.Model.DTOs.AITools;
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class GenerateIReGoSingleSessionReportRequestDto
 {
+    public string? ExpectedSourceSnapshot { get; init; }
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public string SessionRef { get; init; } = string.Empty;
 
     [JsonProperty("ai_evaluation")]
@@ -43,6 +45,9 @@ public sealed class IReGoGamePerformanceEvaluationDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoSingleSessionReportArtifactDto
 {
+    public string SourceSnapshot { get; init; } = string.Empty;
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public IReadOnlyList<PatientTenantSegmentDto>? TenantSegments { get; init; }
     public string ArtifactRef { get; init; } = string.Empty;
     public string StorageMode { get; init; } = "ephemeral";
     public string MimeType { get; init; } = "image/png";

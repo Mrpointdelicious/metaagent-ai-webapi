@@ -35,57 +35,55 @@ public sealed class PatientLayerServiceTests
     }
 
     [Fact]
-    public async Task MedicalLayerDoesNotDependOnRobotIdentityAndPreservesPagination()
+    public async Task MedicalLayerPreservesPagination()
     {
         var repo = new Repository(); var devices = new Devices();
-        var service = new PatientLayerService(repo, devices, devices, devices);
+        var service = new PatientLayerService(repo, devices, devices);
         var response = await service.ConsultationAsync(Context(2681),
             new PatientLayerRequestDto { PageNumber = 2, PageSize = 1 }, "r", default);
         Assert.Equal(PatientLayerContract.Version, response.ContractVersion);
         Assert.Equal(ToolStatuses.Success, response.Status);
-        Assert.Equal("project:2681", response.Data!.PatientRef);
+        Assert.Equal("patient:2681", response.Data!.PatientRef);
         Assert.Equal(2, response.Data.Page.PageNumber);
         Assert.True(response.Data.Page.HasNext);
         Assert.Equal(3, response.Data.MedicalRecordCount);
         Assert.Equal("原医嘱", response.Data.MedicalRecords.Single().Content["doctor_orders"]);
-        Assert.Equal(0, devices.MappingCalls);
     }
 
     [Fact]
-    public async Task MissingRobotMappingLeavesProjectAndTourInformationAvailable()
+    public async Task RehabUsesOneResolvedProjectContextAcrossDeviceFamilies()
     {
         var devices = new Devices();
-        var service = new PatientLayerService(new Repository(), devices, devices, devices);
+        var service = new PatientLayerService(new Repository(), devices, devices);
         var response = await service.RehabAsync(Context(3799), new(), "r", default);
         Assert.Equal(ToolStatuses.Success, response.Status);
         Assert.Equal(ToolStatuses.Success, response.Data!.Iretour.Availability);
-        Assert.Equal(ToolStatuses.Unavailable, response.Data.Irego.Availability);
+        Assert.Equal(ToolStatuses.Success, response.Data.Irego.Availability);
         Assert.Single(response.Data.Plans);
         Assert.Equal(3799, devices.TourPatient);
-        Assert.Null(devices.GoPatient);
+        Assert.Equal(3799, devices.GoPatient);
     }
 
     [Fact]
     public async Task OneFailedDeviceReturnsPartialAndRetainsOtherDevice()
     {
-        var devices = new Devices { FailTour = true, RobotId = 1001360 };
-        var service = new PatientLayerService(new Repository(), devices, devices, devices);
+        var devices = new Devices { FailTour = true};
+        var service = new PatientLayerService(new Repository(), devices, devices);
         var response = await service.RehabAsync(Context(1614), new(), "r", default);
         Assert.Equal(ToolStatuses.Partial, response.Status);
         Assert.Equal(ToolStatuses.Failed, response.Data!.Iretour.Availability);
         Assert.Equal(ToolStatuses.Success, response.Data.Irego.Availability);
-        Assert.Equal(1001360, devices.GoPatient);
+        Assert.Equal(1614, devices.GoPatient);
     }
 
     [Fact]
     public async Task DeletedPatientIsUnavailableAndQueriesNoDevice()
     {
         var devices = new Devices();
-        var service = new PatientLayerService(new Repository { Deleted = true }, devices, devices, devices);
+        var service = new PatientLayerService(new Repository { Deleted = true }, devices, devices);
         var response = await service.RehabAsync(Context(3799), new(), "r", default);
         Assert.Equal(ToolStatuses.Unavailable, response.Status);
         Assert.Null(response.Data);
-        Assert.Equal(0, devices.MappingCalls);
         Assert.Null(devices.TourPatient);
     }
 
@@ -102,11 +100,9 @@ public sealed class PatientLayerServiceTests
         public Task<(int, IReadOnlyList<PatientRehabPlanDto>)> PlansAsync(int id, int page, int size, CancellationToken ct) => Task.FromResult<(int, IReadOnlyList<PatientRehabPlanDto>)>((1, new[] { new PatientRehabPlanDto { PlanId = 1 } }));
     }
 
-    private sealed class Devices : IIReTourPatientHistoryService, IIReGoPatientHistoryService, IPatientIdentityMappingService
+    private sealed class Devices : IIReTourPatientHistoryService, IIReGoPatientHistoryService
     {
         public bool FailTour { get; init; }
-        public int? RobotId { get; init; }
-        public int MappingCalls { get; private set; }
         public int? TourPatient { get; private set; }
         public int? GoPatient { get; private set; }
         public Task<ToolResponseDto<IReTourPatientHistoryDto>> GetAsync(TrustedPatientContext c, GetIReTourPatientHistoryRequestDto request, string rid, CancellationToken ct)
@@ -120,14 +116,5 @@ public sealed class PatientLayerServiceTests
             GoPatient = c.PatientId;
             return Task.FromResult(ToolResponseDto<IReGoPatientHistoryDto>.Create("get_irego_patient_history", rid, ToolStatuses.Success, new(), null, new()));
         }
-        public Task<ToolResponseDto<PatientIdentityResolutionDto>> ResolveAsync(int id, string rid, CancellationToken ct = default)
-        {
-            MappingCalls++;
-            return Task.FromResult(ToolResponseDto<PatientIdentityResolutionDto>.Create("resolve_patient_identity", rid,
-                RobotId.HasValue ? ToolStatuses.Success : ToolStatuses.Unavailable,
-                RobotId.HasValue ? new() { ProjectPatientId = id, RobotPatientId = RobotId.Value } : null,
-                null, new()));
-        }
-        public Task<ToolResponseDto<PatientIdentityResolutionDto>> ResolveByPhoneAsync(string phone, string rid, CancellationToken ct = default) => throw new NotImplementedException();
     }
 }

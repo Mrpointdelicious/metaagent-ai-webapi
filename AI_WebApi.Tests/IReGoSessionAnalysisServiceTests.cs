@@ -110,7 +110,7 @@ public sealed class IReGoSessionAnalysisServiceTests
             "request-1");
 
         Assert.NotNull(response.Data);
-        Assert.Equal(3, response.Data!.Overview.ReportItemCount);
+        Assert.Equal(3, response.Data!.Overview.ReportBlockCount);
         Assert.Equal(3, response.Data.Overview.ReportBlockCount);
         Assert.Equal("报告记录分段数", response.Data.Overview.ReportBlockLabel);
         Assert.Equal(263m, response.Data.Overview.TotalTrainingDuration);
@@ -120,8 +120,8 @@ public sealed class IReGoSessionAnalysisServiceTests
             response.Data.Overview.TotalTrainingDurationDisplay);
         Assert.Equal(
             new[] { "步行训练第1段", "步行训练第2段", "步行训练第3段" },
-            response.Data.DirectTraining.Select(x => x.DisplayName));
-        Assert.Equal(new[] { 1, 2, 3 }, response.Data.DirectTraining.Select(x => x.Sequence));
+            response.Data.ReportBlocks.Select(x => x.DisplayName));
+        Assert.Equal(new[] { 1, 2, 3 }, response.Data.ReportBlocks.Select(x => x.Sequence));
     }
 
     [Fact]
@@ -209,10 +209,9 @@ public sealed class IReGoSessionAnalysisServiceTests
                 LatestRequest(),
                 "request-1");
 
-        Assert.Equal("1.6.0", response.ContractVersion);
+        Assert.Equal("2.0.0", response.ContractVersion);
         Assert.Single(response.Data!.Plan.Blocks);
         Assert.Single(response.Data.ReportBlocks);
-        Assert.Single(response.Data.DirectTraining);
         var comparison = Assert.Single(response.Data.BlockComparison);
         Assert.Equal("matched_exact", comparison.Status);
         var speed = Assert.Single(comparison.MetricComparisons.Where(x =>
@@ -253,14 +252,14 @@ public sealed class IReGoSessionAnalysisServiceTests
         Assert.Equal(1, irego.Coverage.VoidedPlanCount);
         Assert.Single(irego.RecentSessions);
         Assert.Equal(1, irego.RecentSessions[0].Ordinal);
-        Assert.StartsWith("irego_s_v1_", irego.RecentSessions[0].SessionRef);
+        Assert.StartsWith("irego_s_v2_", irego.RecentSessions[0].SessionRef);
         Assert.Single(irego.FuturePlans);
         Assert.Equal("not_complete", irego.FuturePlans[0].CompletionFlag);
         Assert.False(string.IsNullOrWhiteSpace(
             irego.FuturePlans[0].PatientMessage));
         Assert.Single(irego.VoidedPlans);
         Assert.Equal("voided", irego.VoidedPlans[0].State);
-        Assert.StartsWith("irego_p_v1_", irego.VoidedPlans[0].PlanRef);
+        Assert.StartsWith("irego_p_v2_", irego.VoidedPlans[0].PlanRef);
     }
 
     private static IReGoSessionAnalysisService SessionService(

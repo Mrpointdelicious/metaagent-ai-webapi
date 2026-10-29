@@ -13,18 +13,16 @@ public sealed class PatientLayerService : IPatientLayerService
     private readonly IPatientLayerRepository _repository;
     private readonly IIReTourPatientHistoryService _tour;
     private readonly IIReGoPatientHistoryService _go;
-    private readonly IPatientIdentityMappingService _identity;
 
     public PatientLayerService(IPatientLayerRepository repository,
-        IIReTourPatientHistoryService tour, IIReGoPatientHistoryService go,
-        IPatientIdentityMappingService identity)
+        IIReTourPatientHistoryService tour, IIReGoPatientHistoryService go)
     {
-        _repository = repository; _tour = tour; _go = go; _identity = identity;
+        _repository = repository; _tour = tour; _go = go;
     }
 
     private static ToolMetaDto Meta() => new()
     {
-        SourceCompleteness = "project_primary_with_optional_robotdb",
+        SourceCompleteness = "project_primary",
         RegistryVersions = new RegistryVersionsDto { Contract = PatientLayerContract.Version }
     };
 
@@ -141,7 +139,7 @@ public sealed class PatientLayerService : IPatientLayerService
         }
         return Envelope("get_patient_consultation", requestId, new PatientConsultationDto
         {
-            PatientRef = Ref(context.PatientId), MedicalRecordCount = medical.Count,
+            PatientRef = context.PatientRef, MedicalRecordCount = medical.Count,
             ConsultationCount = consultations.Count, MedicalRecords = records,
             Consultations = consultations.Rows,
             Page = Page(request.PageNumber, request.PageSize, Math.Max(medical.Count, consultations.Count)),
@@ -155,7 +153,7 @@ public sealed class PatientLayerService : IPatientLayerService
         if (await PatientAsync(context, ct) == null)
             return Envelope<PatientRehabDto>("get_patient_rehab", requestId, null,
                 ToolStatuses.Unavailable, new[] { "PROJECT_PATIENT_NOT_FOUND" }, "未找到该患者。");
-        var plans = await _repository.PlansAsync(context.PatientId, request.PageNumber, request.PageSize, ct);
+        var plans = await _repository.PlansAsync(context, request.PageNumber, request.PageSize, ct);
         PatientRehabDeviceDto tour;
         PatientRehabDeviceDto go;
         try
@@ -168,27 +166,16 @@ public sealed class PatientLayerService : IPatientLayerService
         catch (Exception) { tour = Device(ToolStatuses.Failed, null, new[] { "IRETOUR_DEPENDENCY_FAILURE" }, "IReTour记录暂时无法读取。"); }
         try
         {
-            var identity = await _identity.ResolveAsync(context.PatientId, requestId, ct);
-            if (identity.Status != ToolStatuses.Success || identity.Data == null)
-                go = Device(ToolStatuses.Unavailable, null, identity.ReasonCodes, "未找到唯一的IReGo身份映射，其他患者信息仍可查询。");
-            else
-            {
-                var robotContext = new TrustedPatientContext
-                {
-                    PatientId = identity.Data.RobotPatientId, SubjectRef = context.SubjectRef,
-                    ConversationId = context.ConversationId, TraceId = context.TraceId
-                };
-                var response = await _go.GetAsync(robotContext, new GetIReGoPatientHistoryRequestDto
-                { PageNumber = request.PageNumber, PageSize = request.PageSize }, requestId, ct);
-                go = Device(response.Status, response.Data, response.ReasonCodes, response.PatientMessage);
-            }
+            var response = await _go.GetAsync(context, new GetIReGoPatientHistoryRequestDto
+            { PageNumber = request.PageNumber, PageSize = request.PageSize }, requestId, ct);
+            go = Device(response.Status, response.Data, response.ReasonCodes, response.PatientMessage);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception) { go = Device(ToolStatuses.Failed, null, new[] { "IREGO_DEPENDENCY_FAILURE" }, "IReGo记录暂时无法读取。"); }
         var failed = tour.Availability == ToolStatuses.Failed || go.Availability == ToolStatuses.Failed;
         return Envelope("get_patient_rehab", requestId, new PatientRehabDto
         {
-            PatientRef = Ref(context.PatientId), PlanCount = plans.Count, Plans = plans.Rows,
+            PatientRef = context.PatientRef, PlanCount = plans.Count, Plans = plans.Rows,
             PlanPage = Page(request.PageNumber, request.PageSize, plans.Count), Iretour = tour, Irego = go,
             Limitations = new[] { "仅包含已记录的计划和设备训练；未接入的评估或其他康复内容不能视为不存在。", "历史训练结果不代表当前状态；计划完成标记不能替代训练结果。" }
         }, failed ? ToolStatuses.Partial : ToolStatuses.Success);

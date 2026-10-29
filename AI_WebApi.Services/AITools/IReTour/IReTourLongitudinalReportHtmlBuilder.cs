@@ -34,7 +34,7 @@ public sealed class IReTourLongitudinalReportHtmlBuilder :
             .Append(ReportUsage)
             .Append("</section><footer><span>IRETOUR 统合汇报</span><span>数据来源：IReTour 训练汇总记录</span></footer>")
             .Append("</article></body></html>");
-        return html.ToString();
+        return AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.AddToHtml(html.ToString(), analysis);
     }
 
     private static void AppendHeader(
@@ -135,6 +135,7 @@ public sealed class IReTourLongitudinalReportHtmlBuilder :
         var positions = analysis.Sessions.Select(session => new IReGoLongitudinalReportPositionDto
         {
             Ordinal = session.Ordinal,
+            RecordTenant = session.RecordTenant,
             SessionTime = session.SessionTime
         }).ToArray();
         foreach (var metric in series)
@@ -148,6 +149,7 @@ public sealed class IReTourLongitudinalReportHtmlBuilder :
                 Points = metric.Points.Select(point => new IReGoLongitudinalMetricPointDto
                 {
                     ReportOrdinal = point.Ordinal,
+                    RecordTenant = point.RecordTenant,
                     Status = point.ValueStatus,
                     NormalizedValue = IReTourReportMetricFormatter.IsRate(metric.MetricCode)
                         ? point.Value * 100m

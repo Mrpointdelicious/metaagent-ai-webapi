@@ -44,7 +44,7 @@ public sealed class IReTourSingleSessionReportHtmlBuilder :
             .Append(E(FormatTime(analysis.Time.ExecutionEndedAt ??
                                  analysis.Time.SourceRecordCreatedAt)))
             .Append("</span></footer></article></body></html>");
-        return html.ToString();
+        return AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.AddToHtml(html.ToString(), analysis);
     }
 
     private static void BuildHero(

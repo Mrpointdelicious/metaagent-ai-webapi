@@ -7,6 +7,7 @@ namespace AI_WebApi.Model.DTOs.AITools;
 public sealed class GetIReGoPatientHistoryRequestDto
 {
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public int PageNumber { get; init; } = 1;
     public int PageSize { get; init; } = 10;
     public string RecordScope { get; init; } = "all";
@@ -51,6 +52,10 @@ public sealed class IReGoHistorySummaryDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoHistoryItemDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public int Ordinal { get; init; }
     public string RecordType { get; init; } = "plan";
     public string PlanRef { get; init; } = string.Empty;

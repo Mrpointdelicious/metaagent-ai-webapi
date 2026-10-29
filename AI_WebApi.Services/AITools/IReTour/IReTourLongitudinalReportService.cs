@@ -101,6 +101,8 @@ public sealed class IReTourLongitudinalReportService :
                 "同一训练项目至少需要三条有效记录才能生成统合汇报。");
         }
 
+        AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.Annotate(analysis.Data, context.Access);
+
         var artifactRef = _artifacts.CreateArtifactRef(
             analysis.Data.PatientRef,
             IReTourReportContentFingerprint.LongitudinalTrainingScope(analysis.Data),
@@ -141,6 +143,7 @@ public sealed class IReTourLongitudinalReportService :
             ToolStatuses.Available,
             new IReTourLongitudinalReportArtifactDto
             {
+                TenantSegments = AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.Segments(analysis.Data, context.Access),
                 ArtifactRef = artifactRef,
                 SourceSnapshot = snapshot,
                 StorageMode = _artifacts.StorageMode,

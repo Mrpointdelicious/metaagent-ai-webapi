@@ -16,9 +16,11 @@ public sealed class IReTourSessionRefProvider : IIReTourSessionRefProvider
 {
     public const string Prefix = "iretour_s_v1_";
     private readonly IReTourToolOptions _options;
+    private readonly AI_WebApi.IServices.AITools.IPatientAccessContextAccessor? _access;
 
-    public IReTourSessionRefProvider(IOptions<IReTourToolOptions> options)
+    public IReTourSessionRefProvider(IOptions<IReTourToolOptions> options, AI_WebApi.IServices.AITools.IPatientAccessContextAccessor? access = null)
     {
+        _access = access;
         _options = options.Value;
     }
 
@@ -33,9 +35,12 @@ public sealed class IReTourSessionRefProvider : IIReTourSessionRefProvider
             session.CanonicalSessionKey,
             IReTourContract.SourceSystem,
             session.PatientBindingVersion);
-        return Prefix + Base64Url(Convert.ToBase64String(
+        if (_access?.Current != null) payload += "|" + _access.Current.ScopeFingerprint;
+        var reference = Prefix + Base64Url(Convert.ToBase64String(
             Hmac(Encoding.UTF8.GetBytes(payload)))) + "." +
             Base64Url(Convert.ToBase64String(Encoding.UTF8.GetBytes(payload)));
+        _access?.Current?.BindReference(reference, $"project.dbwalk:{session.WalkId}");
+        return reference;
     }
 
     public IReTourEvaluatedSession? Verify(
@@ -74,7 +79,8 @@ public sealed class IReTourSessionRefProvider : IIReTourSessionRefProvider
         }
 
         var payload = Encoding.UTF8.GetString(payloadBytes).Split('|');
-        if (payload.Length != 7 ||
+        if (payload.Length != (_access?.Current == null ? 7 : 8) ||
+            (_access?.Current != null && payload[7] != _access.Current.ScopeFingerprint) ||
             payload[0] != "1" ||
             payload[1] != IReTourContract.DeviceFamily ||
             payload[5] != IReTourContract.SourceSystem ||

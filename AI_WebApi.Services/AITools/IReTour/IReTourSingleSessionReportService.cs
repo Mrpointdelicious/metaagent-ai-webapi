@@ -112,6 +112,8 @@ public sealed class IReTourSingleSessionReportService :
         if (request.ExpectedSourceSnapshot != null && request.ExpectedSourceSnapshot != snapshot)
             return Failure(requestId, IReTourReasonCodes.SourceChanged, ToolStatuses.Unavailable,
                 analysis.Meta, "训练数据已经变化，请重新查询解读后生成报表。");
+        AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.Annotate(analysis.Data, context.Access);
+
         var artifactRef = _artifacts.CreateArtifactRef(
             analysis.Data.Session.PatientRef,
             IReTourReportContentFingerprint.SingleTrainingScope(analysis.Data),
@@ -152,6 +154,7 @@ public sealed class IReTourSingleSessionReportService :
             ToolStatuses.Available,
             new IReTourSingleSessionReportArtifactDto
             {
+                TenantSegments = AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.Segments(analysis.Data, context.Access),
                 ArtifactRef = artifactRef,
                 SourceSnapshot = snapshot,
                 StorageMode = _artifacts.StorageMode,

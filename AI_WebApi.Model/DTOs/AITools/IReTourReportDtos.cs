@@ -8,6 +8,7 @@ public sealed class GenerateIReTourSingleSessionReportRequestDto
 {
     public string? ExpectedSourceSnapshot { get; init; }
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public string SessionRef { get; init; } = string.Empty;
 
     [JsonProperty("ai_evaluation")]
@@ -20,6 +21,8 @@ public sealed class GenerateIReTourSingleSessionReportRequestDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourSingleSessionReportArtifactDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public IReadOnlyList<PatientTenantSegmentDto>? TenantSegments { get; init; }
     public string SourceSnapshot { get; init; } = string.Empty;
     public string ArtifactRef { get; init; } = string.Empty;
     public string StorageMode { get; init; } = "ephemeral";
@@ -35,6 +38,7 @@ public sealed class GenerateIReTourLongitudinalReportRequestDto
 {
     public string? ExpectedSourceSnapshot { get; init; }
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public string SelectionMode { get; init; } = "latest_count";
     public int ReportCount { get; init; } = 4;
     public int? StartOrdinal { get; init; }
@@ -50,6 +54,8 @@ public sealed class GenerateIReTourLongitudinalReportRequestDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourLongitudinalReportArtifactDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public IReadOnlyList<PatientTenantSegmentDto>? TenantSegments { get; init; }
     public string SourceSnapshot { get; init; } = string.Empty;
     public string ArtifactRef { get; init; } = string.Empty;
     public string StorageMode { get; init; } = "ephemeral";

@@ -26,14 +26,22 @@ public sealed class IReCogDataRepository : IIReCogDataRepository
         var db = _patients.Db;
         var patient = await db.Queryable<IReTourPatientEntity>()
             .Where(x => x.Id == context.PatientId && x.Status == 1 && x.IsDeleted == 0).FirstAsync(cancellationToken);
-        if (patient?.BusinessId is not > 0) return new();
+        if (patient == null || context.Access == null && patient.BusinessId is not > 0) return new();
+        var owners = context.Access?.UserIds ?? new[] { context.PatientId };
         var plans = await db.Queryable<RehabPlanEntity>()
             .InnerJoin<IReTourDeviceEntity>((p, d) => p.DeviceId == d.Id)
-            .Where((p, d) => p.UserId == context.PatientId && p.BusinessId == patient.BusinessId &&
-                d.BusinessId == patient.BusinessId && d.DeviceType == 5)
+            .Where((p, d) => owners.Contains(p.UserId ?? 0) && d.DeviceType == 5)
+            .WhereIF(context.Access == null, (p, d) => p.BusinessId == patient.BusinessId && d.BusinessId == patient.BusinessId)
+            .WhereIF(context.Access?.DataScope == "current_tenant", (p, d) => p.BusinessId == context.Access!.CurrentBusinessId)
             .OrderBy((p, d) => p.Id, SqlSugar.OrderByType.Desc).Select((p, d) => p)
             .Take(1001).ToListAsync(cancellationToken);
         if (plans.Count > 1000) throw new IReCogReadLimitException();
+        if (context.Access != null)
+            foreach (var plan in plans)
+            {
+                plan.RecordTenant = context.Access.Observe($"project.dbrehaplan:{plan.Id}", plan.BusinessId, "project.dbrehaplan.BusinessId", plan.UserId);
+                plan.OwnerUserRef = context.Access.Reference("owner", "project.dbuser|" + plan.UserId);
+            }
         var ids = plans.Select(p => p.Id).ToArray();
         var reports = ids.Length == 0 ? new List<RehabReportEntity>() : await db.Queryable<RehabReportEntity>()
             .Where(r => ids.Contains(r.PlanId ?? 0)).Take(5001).ToListAsync(cancellationToken);

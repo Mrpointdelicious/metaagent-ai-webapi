@@ -8,6 +8,7 @@ namespace AI_WebApi.Model.DTOs.AITools;
 public sealed class GetMultisourcePatientContextRequestDto
 {
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public bool ForceRefresh { get; init; }
     public string ProjectionLevel { get; init; } = "compact";
 }
@@ -17,6 +18,9 @@ public sealed class DifySystemContextDto
 {
     public string User { get; init; } = string.Empty;
     public string? ConversationId { get; init; }
+    public PatientIdentityInputDto? PatientIdentity { get; init; }
+    public int? CurrentBusinessId { get; init; }
+    public string? IdentityContextToken { get; init; }
 }
 
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
@@ -45,7 +49,7 @@ public sealed class PatientProfileBriefDto
     public bool Available { get; init; }
     public IReadOnlyDictionary<string, object?> Facts { get; init; } =
         new Dictionary<string, object?>();
-    public string Source { get; init; } = "robotdb_main.users.details";
+    public string Source { get; init; } = "project.dbuser.UserDetails";
 }
 
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
@@ -183,6 +187,10 @@ public sealed class IReGoPlanStatusSummaryDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoPlanListItemDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public string PlanRef { get; init; } = string.Empty;
     public DateTimeOffset? ScheduledAt { get; init; }
     public string DisplayName { get; init; } = string.Empty;
@@ -198,6 +206,10 @@ public sealed class IReGoPlanListItemDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoRecentSessionDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public int Ordinal { get; init; }
     public string SessionRef { get; init; } = string.Empty;
     public DateTimeOffset? SessionTime { get; init; }
@@ -222,6 +234,10 @@ public sealed class IReGoSessionHistoryDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class LatestIReGoSessionDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public string SessionRef { get; init; } = string.Empty;
     public DateTimeOffset? SessionTime { get; init; }
     public string TrainingState { get; init; } = "execution_unknown";

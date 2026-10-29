@@ -7,6 +7,7 @@ using AI_WebApi.IServices.AITools;
 using AI_WebApi.Services.AITools.IReGo;
 using AI_WebApi.Services.AITools.IReTour;
 using AI_WebApi.Services.AITools.HospitalOperations;
+using AI_WebApi.Services.AITools.PatientContext;
 using System.Reflection;
 
 namespace AI_WebApi.Extensions.ServiceExtensions
@@ -52,6 +53,8 @@ namespace AI_WebApi.Extensions.ServiceExtensions
             builder.RegisterType<InMemoryPatientContextSnapshotCache>()
                 .As<IPatientContextSnapshotCache>()
                 .SingleInstance();
+            builder.RegisterType<PatientAccessContextAccessor>()
+                .As<IPatientAccessContextAccessor>().InstancePerLifetimeScope();
             builder.RegisterType<FileSystemIReGoReportArtifactStore>()
                 .As<IIReGoReportArtifactStore>()
                 .SingleInstance();

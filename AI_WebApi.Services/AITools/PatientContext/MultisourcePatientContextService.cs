@@ -46,6 +46,7 @@ public sealed class MultisourcePatientContextService : IMultisourcePatientContex
         if (!request.ForceRefresh &&
             _cache.TryGetSnapshot(context.ContextKey, out var cached))
         {
+            foreach (var issue in cached.ScopeIssues) context.Access?.AddIssue(issue);
             return BuildEnvelope(
                 requestId,
                 WithCacheStatus(cached.Data, "hit"),
@@ -157,7 +158,9 @@ public sealed class MultisourcePatientContextService : IMultisourcePatientContex
             {
                 SubjectRef = context.SubjectRef,
                 PatientRef = patientRef,
-                TenantRef = evaluation.Raw.Patient.BusinessId.HasValue
+                TenantRef = context.Access is { } access
+                    ? access.CurrentBusinessId is > 0 ? access.Tenant(access.CurrentBusinessId, "authenticated_session").TenantRef! : string.Empty
+                    : evaluation.Raw.Patient.BusinessId.HasValue
                     ? _sessionRefProvider.CreateTenant(
                         evaluation.Raw.Patient.BusinessId.Value)
                     : string.Empty,
@@ -320,8 +323,10 @@ public sealed class MultisourcePatientContextService : IMultisourcePatientContex
             }
         };
 
+        RecordTenantPresentation.Annotate(data, context.Access);
         _cache.Store(new PatientContextSnapshot
         {
+            ScopeIssues = context.Access?.Describe().Issues ?? Array.Empty<string>(),
             SnapshotRef = snapshotRef,
             ContextKey = context.ContextKey,
             ExpiresAt = expiresAt,

@@ -7,6 +7,7 @@ namespace AI_WebApi.Model.DTOs.AITools;
 public sealed class GetIReGoSessionAnalysisRequestDto
 {
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public string Selector { get; init; } = "latest_usable";
     public string? SessionRef { get; init; }
     public string DetailLevel { get; init; } = "standard";
@@ -16,6 +17,7 @@ public sealed class GetIReGoSessionAnalysisRequestDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoSessionAnalysisDto
 {
+    public string SourceSnapshot { get; set; } = string.Empty;
     public IReGoSessionIdentityDto Session { get; init; } = new();
     public IReGoSessionTimeDto Time { get; init; } = new();
     public IReGoSessionSchemaDto Schema { get; init; } = new();
@@ -31,16 +33,6 @@ public sealed class IReGoSessionAnalysisDto
         CurrentPerformanceFacets { get; init; } =
         Array.Empty<IReGoCurrentPerformanceFacetDto>();
 
-    /// <summary>
-    /// Compatibility projections retained for existing 1.1 clients.
-    /// New clients should use report_blocks.
-    /// </summary>
-    public IReadOnlyList<IReGoContentBlockDto> DirectTraining { get; init; } =
-        Array.Empty<IReGoContentBlockDto>();
-    public IReadOnlyList<IReGoContentBlockDto> Games { get; init; } =
-        Array.Empty<IReGoContentBlockDto>();
-    public IReadOnlyList<IReGoContentBlockDto> Assessments { get; init; } =
-        Array.Empty<IReGoContentBlockDto>();
     public PlanReportComparisonDto PlanReportComparison { get; init; } = new();
     public IReGoMappingDto Mapping { get; init; } = new();
     public QualitySummaryDto Quality { get; init; } = new();
@@ -74,10 +66,14 @@ public sealed class IReGoGameEvaluationFactDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoSessionIdentityDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public string SessionRef { get; init; } = string.Empty;
     public string PatientRef { get; init; } = string.Empty;
     public string DeviceFamily { get; init; } = "irego";
-    public string SourceSystem { get; init; } = "robotdb_main";
+    public string SourceSystem { get; init; } = "project";
 }
 
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
@@ -105,11 +101,6 @@ public sealed class IReGoSessionSchemaDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoSessionOverviewDto
 {
-    /// <summary>
-    /// Compatibility alias for ReportDetails.ReportList element count.
-    /// Each element is one report record block, not an independent rehab project.
-    /// </summary>
-    public int ReportItemCount { get; init; }
     public int ReportBlockCount { get; init; }
     public string ReportBlockLabel { get; init; } = "报告记录分段数";
     public IReadOnlyList<string> ContentTypes { get; init; } = Array.Empty<string>();
@@ -128,6 +119,7 @@ public sealed class IReGoContentBlockDto
     public int? BalanceMode { get; init; }
     public string RehabContent { get; init; } = "unknown";
     public string InteractionType { get; init; } = "direct_training";
+    [JsonIgnore]
     public string? Name { get; init; }
     public string DisplayName { get; init; } = string.Empty;
     public string? TrainingModeName { get; init; }
@@ -177,6 +169,10 @@ public sealed class IReGoCurrentPerformanceFacetDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoPlanDetailDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public string PlanRef { get; init; } = string.Empty;
     public string State { get; init; } = "execution_unknown";
     public string CompletionFlag { get; init; } = "unknown";
@@ -229,9 +225,9 @@ public sealed class PlanReportComparisonDto
 public sealed class IReGoMappingDto
 {
     public string DeviceRule { get; init; } =
-        "robotdb_main.rehabplan.devicetype=1 AND robotdb_main.templates.modelid=1";
+        "project.dbdevice.DeviceType=1 AND project.dbtemplates.ModelId=0";
     public string PlanReportRule { get; init; } =
-        "robotdb_main.report.Id=robotdb_main.rehabplan.Id";
+        "project.dbreport.planId=project.dbrehaplan.Id";
     public string PrimaryReportContainer { get; init; } = "ReportDetails.ReportList";
     public string ProcessFieldRole { get; init; } = "sequence_consistency_only";
     public string RevisionPolicy { get; init; } = "single_summary_report_per_plan";

@@ -28,8 +28,8 @@ public sealed class IReGoPatientHistoryServiceTests
         Assert.Equal(2, response.Data.Page.TotalPages);
         Assert.True(response.Data.Page.HasNext);
         var item = Assert.Single(response.Data.Items);
-        Assert.StartsWith("irego_p_v1_", item.PlanRef);
-        Assert.StartsWith("irego_s_v1_", item.SessionRef);
+        Assert.StartsWith("irego_p_v2_", item.PlanRef);
+        Assert.StartsWith("irego_s_v2_", item.SessionRef);
         Assert.True(item.EvaluationAvailability.SingleSession);
         Assert.DoesNotContain("461", item.PlanRef);
     }

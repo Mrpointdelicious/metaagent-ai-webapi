@@ -7,6 +7,7 @@ namespace AI_WebApi.Model.DTOs.AITools;
 public sealed class GetIReTourSessionAnalysisRequestDto
 {
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public string Selector { get; init; } = "latest_usable";
     public string? SessionRef { get; init; }
     public string DetailLevel { get; init; } = "standard";
@@ -31,6 +32,10 @@ public sealed class IReTourSessionAnalysisDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourSessionIdentityDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public string SessionRef { get; init; } = string.Empty;
     public string PatientRef { get; init; } = string.Empty;
     public string DeviceFamily { get; init; } = "iretour";

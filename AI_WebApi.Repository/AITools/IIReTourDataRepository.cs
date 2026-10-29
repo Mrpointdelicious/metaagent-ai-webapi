@@ -11,6 +11,7 @@ namespace AI_WebApi.Repository.AITools;
 /// </summary>
 public sealed class IReTourRawDataSet
 {
+    public bool ScopedOwnershipVerified { get; init; }
     public IReTourPatientEntity? Patient { get; init; }
     public IReTourPatientBinding Binding { get; init; } = new() { Verified = false };
     public IReadOnlyList<int> SourceUserIds { get; init; } = Array.Empty<int>();

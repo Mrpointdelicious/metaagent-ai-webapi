@@ -30,7 +30,7 @@ public sealed class IReGoLongitudinalReportHtmlBuilder :
             .Append(ReportUsage)
             .Append("</section><footer><span>IREGO 统合汇报</span><span>数据来源：robotDB 训练报告记录</span></footer>")
             .Append("</article></body></html>");
-        return html.ToString();
+        return AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.AddToHtml(html.ToString(), analysis);
     }
 
     private static void AppendHeader(
@@ -70,6 +70,7 @@ public sealed class IReGoLongitudinalReportHtmlBuilder :
             var completion = report.CompletionRate.HasValue
                 ? $"完成率 {report.CompletionRate:0.#}% · {report.CompletionNumerator}/{report.CompletionDenominator}"
                 : "不参与指标比较";
+            if (report.RecordTenant != null) completion += " · 所属机构：" + report.RecordTenant.DisplayName;
             var timeLabel = FormatTime(report.SessionTime);
             var reportLabel = report.IncludedInMetricComparison
                 ? $"{stateLabel} · {report.ReportBlockCount}段"
@@ -605,7 +606,10 @@ public sealed class IReGoLongitudinalReportHtmlBuilder :
                     .Append(color).Append("\" cx=\"").Append(N(x))
                     .Append("\" cy=\"").Append(N(y)).Append("\" r=\"6\"><title>")
                     .Append(E(series.DisplayName)).Append("：")
-                    .Append(E(displayValue)).Append("</title></circle>");
+                    .Append(E(displayValue));
+                var tenant = point.RecordTenant ?? reports[i].RecordTenant;
+                if (tenant != null) svg.Append(" · 所属机构：").Append(E(tenant.DisplayName));
+                svg.Append("</title></circle>");
                 if (group.Series.Count <= 2 && ShowLabel(i))
                 {
                     var labelOffset = 12m + seriesIndex * 11m;

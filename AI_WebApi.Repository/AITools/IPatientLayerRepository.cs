@@ -10,6 +10,8 @@ public interface IPatientLayerRepository
     Task<(int Count, IReadOnlyList<PatientConsultationRecordDto> Rows)> ConsultationsAsync(int patientId, int page, int size, CancellationToken cancellationToken);
     Task<IReadOnlyList<PatientPrescriptionDto>> PrescriptionsAsync(int patientId, int medicalId, CancellationToken cancellationToken);
     Task<(int Count, IReadOnlyList<PatientRehabPlanDto> Rows)> PlansAsync(int patientId, int page, int size, CancellationToken cancellationToken);
+    Task<(int Count, IReadOnlyList<PatientRehabPlanDto> Rows)> PlansAsync(AI_WebApi.Model.Domain.IReGo.TrustedPatientContext context, int page, int size, CancellationToken cancellationToken) =>
+        PlansAsync(context.PatientId, page, size, cancellationToken);
 }
 
 public sealed class PatientMedicalRow

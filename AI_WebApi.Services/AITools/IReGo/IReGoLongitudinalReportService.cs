@@ -107,6 +107,11 @@ public sealed class IReGoLongitudinalReportService :
                 "可比训练记录不足3条，暂时无法生成统合评价报告。");
         }
 
+        if (context.Access != null && request.ExpectedSourceSnapshot != analysis.Data.SourceSnapshot)
+            return Failure(requestId, "IREGO_SOURCE_CHANGED", ToolStatuses.Unavailable, analysis.Meta, "康复记录已更新，请重新获取分析后生成报告。");
+
+        AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.Annotate(analysis.Data, context.Access);
+
         var artifactRef = _artifacts.CreateArtifactRef(
             analysis.Data.PatientRef,
             IReGoReportContentFingerprint.LongitudinalTrainingScope(
@@ -155,6 +160,8 @@ public sealed class IReGoLongitudinalReportService :
             ToolStatuses.Available,
             new IReGoLongitudinalReportArtifactDto
             {
+                SourceSnapshot = analysis.Data.SourceSnapshot,
+                TenantSegments = AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.Segments(analysis.Data, context.Access),
                 ArtifactRef = artifactRef,
                 StorageMode = _artifacts.StorageMode,
                 ImageUrl = imageUrl,

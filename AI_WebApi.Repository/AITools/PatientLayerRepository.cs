@@ -10,7 +10,7 @@ public sealed class PatientLayerRepository : IPatientLayerRepository
 {
     private readonly SqlSugarScope _db;
     public PatientLayerRepository(IUnitOfWorkManage unitOfWork) => _db = unitOfWork.GetDbClient();
-    private SqlSugarScopeProvider Project => _db.GetConnectionScope(PatientIdentityMappingRepository.ProjectConnectionId);
+    private SqlSugarScopeProvider Project => _db.GetConnectionScope("project_main");
 
     public async Task<PatientEntity?> PatientAsync(int patientId, CancellationToken cancellationToken)
     {
@@ -69,5 +69,25 @@ public sealed class PatientLayerRepository : IPatientLayerRepository
             BookingTime ScheduledAt,IsComplete CompletionFlag,Status,Details FROM dbrehaplan
             WHERE UserId=@patient ORDER BY COALESCE(BookingTime,CreateTime) DESC,Id DESC LIMIT @offset,@size", patientId, page, size, ct);
         return (count, rows);
+    }
+
+    public async Task<(int Count, IReadOnlyList<PatientRehabPlanDto> Rows)> PlansAsync(
+        AI_WebApi.Model.Domain.IReGo.TrustedPatientContext context, int page, int size, CancellationToken ct)
+    {
+        if (context.Access == null) return await PlansAsync(context.PatientId, page, size, ct);
+        ct.ThrowIfCancellationRequested();
+        var access = context.Access;
+        var query = Project.Queryable<RehabPlanEntity>().Where(p => access.UserIds.Contains(p.UserId ?? 0))
+            .WhereIF(access.DataScope == "current_tenant", p => p.BusinessId == access.CurrentBusinessId);
+        var count = await query.Clone().CountAsync();
+        var rows = await query.OrderBy(p => SqlFunc.IsNull(p.BookingTime, p.CreateTime), OrderByType.Desc)
+            .OrderBy(p => p.Id, OrderByType.Desc).Skip((page - 1) * size).Take(size).ToListAsync(ct);
+        return (count, rows.Select(p => new PatientRehabPlanDto
+        {
+            PlanId = p.Id, CreatedAt = p.CreateTime, ScheduledAt = p.BookingTime, CompletionFlag = p.IsComplete,
+            Status = p.Status, Details = p.Details,
+            RecordTenant = access.Observe($"project.dbrehaplan:{p.Id}", p.BusinessId, "project.dbrehaplan.BusinessId", p.UserId),
+            OwnerUserRef = access.Reference("owner", "project.dbuser|" + p.UserId)
+        }).ToArray());
     }
 }

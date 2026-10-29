@@ -9,7 +9,7 @@ namespace AI_WebApi.Controllers;
 
 [ApiController]
 [Route("api/ai/patients/tools")]
-[ApiExplorerSettings(GroupName = "ai-patient-tools-v1")]
+[ApiExplorerSettings(GroupName = "ai-patient-tools-v2")]
 [Produces("application/json")]
 public sealed class IReGoToolsController : ControllerBase
 {
@@ -500,6 +500,7 @@ public sealed class IReGoToolsController : ControllerBase
         Response.Headers["X-Content-Type-Options"] = "nosniff";
 
         var result = _reportService.ResolveImage(token);
+        if (result.ArtifactRef.StartsWith("irego_scope_v2_", StringComparison.Ordinal)) return NotFound();
         if (result.Status == ReportImageAccessStatus.Expired &&
             !string.IsNullOrWhiteSpace(result.ArtifactRef))
         {
@@ -527,6 +528,7 @@ public sealed class IReGoToolsController : ControllerBase
     public IActionResult GetIReGoReportArtifact(
         [FromRoute] string artifactRef)
     {
+        if (artifactRef.StartsWith("irego_scope_v2_", StringComparison.Ordinal)) return NotFound();
         Response.Headers["Cache-Control"] = "private, no-cache, max-age=0";
         Response.Headers["X-Content-Type-Options"] = "nosniff";
 

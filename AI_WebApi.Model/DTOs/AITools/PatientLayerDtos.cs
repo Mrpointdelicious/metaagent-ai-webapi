@@ -5,14 +5,15 @@ namespace AI_WebApi.Model.DTOs.AITools;
 
 public static class PatientLayerContract
 {
-    public const string Version = "patient-layers-1.0.0";
+    public const string Version = "patient-layers-2.0.0";
 }
 
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class PatientLayerRequestDto
 {
-    // user is project.dbuser.Id, injected by the authenticated gateway.
+    // Identity and scope are bound to the authenticated business session.
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public int PageNumber { get; init; } = 1;
     public int PageSize { get; init; } = 5;
 }
@@ -106,6 +107,10 @@ public sealed class PatientRehabDeviceDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class PatientRehabPlanDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public int PlanId { get; init; }
     public DateTime? CreatedAt { get; init; }
     public DateTime? ScheduledAt { get; init; }

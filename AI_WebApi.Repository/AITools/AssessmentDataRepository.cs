@@ -27,12 +27,21 @@ public sealed class AssessmentDataRepository : IAssessmentDataRepository
         var db = _patients.Db;
         var patient = await db.Queryable<IReTourPatientEntity>()
             .Where(p => p.Id == context.PatientId && p.Status == 1 && p.IsDeleted == 0).FirstAsync(cancellationToken);
-        if (patient?.BusinessId is not > 0) return new();
+        if (patient == null || context.Access == null && patient.BusinessId is not > 0) return new();
+        var owners = context.Access?.UserIds ?? new[] { context.PatientId };
         var plans = await db.Queryable<RehabPlanEntity>()
-            .Where(p => p.UserId == context.PatientId && p.BusinessId == patient.BusinessId &&
+            .Where(p => owners.Contains(p.UserId ?? 0) &&
                 p.DeviceId == -1 && (p.TemplateId == 0 || p.TemplateId == -1))
+            .WhereIF(context.Access == null, p => p.BusinessId == patient.BusinessId)
+            .WhereIF(context.Access?.DataScope == "current_tenant", p => p.BusinessId == context.Access!.CurrentBusinessId)
             .OrderBy(p => p.Id, SqlSugar.OrderByType.Desc).Take(1001).ToListAsync(cancellationToken);
         if (plans.Count > 1000) throw new AssessmentReadLimitException();
+        if (context.Access != null)
+            foreach (var plan in plans)
+            {
+                plan.RecordTenant = context.Access.Observe($"project.dbrehaplan:{plan.Id}", plan.BusinessId, "project.dbrehaplan.BusinessId", plan.UserId);
+                plan.OwnerUserRef = context.Access.Reference("owner", "project.dbuser|" + plan.UserId);
+            }
         var ids = plans.Select(p => p.Id).ToArray();
         var reports = ids.Length == 0 ? new List<RehabReportEntity>() : await db.Queryable<RehabReportEntity>()
             .Where(r => ids.Contains(r.PlanId ?? 0)).Take(5001).ToListAsync(cancellationToken);

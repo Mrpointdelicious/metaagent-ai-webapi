@@ -9,8 +9,9 @@ public sealed class TrustedPatientContext
     public string SubjectRef { get; init; } = string.Empty;
     public string ConversationId { get; init; } = string.Empty;
     public string TraceId { get; init; } = string.Empty;
+    public PatientAccessContext? Access { get; init; }
 
-    public string PatientRef => $"patient:{PatientId}";
+    public string PatientRef => Access?.Reference("patient_scope_v2", Access.ScopeFingerprint) ?? $"patient:{PatientId}";
     public string ContextKey => $"{SubjectRef}|{PatientRef}";
 }
 
@@ -28,6 +29,7 @@ public sealed class IReGoRawDataSet
     public int ReferenceAnomalyCount { get; init; }
     public string SourceSystem { get; init; } = "robotdb_main";
     public string SourceCompleteness { get; init; } = "authoritative_primary";
+    public IReadOnlyList<ToolIssueDto> SourceIssues { get; init; } = Array.Empty<ToolIssueDto>();
 }
 
 public sealed class TrainingStateResult
@@ -123,6 +125,7 @@ public sealed class IReGoSessionBinding
 
 public sealed class PatientContextSnapshot
 {
+    public IReadOnlyList<string> ScopeIssues { get; init; } = Array.Empty<string>();
     public string SnapshotRef { get; init; } = string.Empty;
     public string ContextKey { get; init; } = string.Empty;
     public DateTimeOffset ExpiresAt { get; init; }

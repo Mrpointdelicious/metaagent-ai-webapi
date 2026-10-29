@@ -7,6 +7,7 @@ namespace AI_WebApi.Model.DTOs.AITools;
 public sealed class IReCogRequestDto
 {
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public int PageNumber { get; init; } = 1;
     public int PageSize { get; init; } = 10;
     public string Selector { get; init; } = "latest_record";
@@ -21,6 +22,10 @@ public sealed class IReCogRequestDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReCogSessionDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public string SessionRef { get; init; } = string.Empty;
     public DateTimeOffset? RecordedAt { get; init; }
     public int? SourceCompletionFlag { get; init; }

@@ -7,6 +7,7 @@ namespace AI_WebApi.Model.DTOs.AITools;
 public sealed class GetIReTourLongitudinalAnalysisRequestDto
 {
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public string SelectionMode { get; init; } = "latest_count";
     public int ReportCount { get; init; } = 4;
     public int? StartOrdinal { get; init; }
@@ -52,6 +53,10 @@ public sealed class IReTourLongitudinalWindowDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourLongitudinalSessionDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public IReadOnlyList<string> ExclusionReasonCodes { get; init; } = Array.Empty<string>();
     public int Ordinal { get; init; }
     public string SessionRef { get; init; } = string.Empty;
@@ -85,6 +90,10 @@ public sealed class IReTourMetricSeriesDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReTourMetricPointDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public int Ordinal { get; init; }
     public string SessionRef { get; init; } = string.Empty;
     public DateTimeOffset? SessionTime { get; init; }

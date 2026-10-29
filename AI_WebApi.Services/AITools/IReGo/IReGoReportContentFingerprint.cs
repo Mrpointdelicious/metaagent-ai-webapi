@@ -41,7 +41,7 @@ internal static class IReGoReportContentFingerprint
         {
             writer.WriteStartObject();
             writer.WriteString("scope_schema", "irego-longitudinal-scope-v1");
-            writer.WriteString("source_namespace", "robotdb_main");
+            writer.WriteString("source_namespace", "project.dbrehaplan:20261023");
             writer.WritePropertyName("positions");
             writer.WriteStartArray();
             foreach (var report in analysis.Reports

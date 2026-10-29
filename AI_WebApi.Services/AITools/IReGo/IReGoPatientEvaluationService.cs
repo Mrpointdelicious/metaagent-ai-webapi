@@ -24,9 +24,10 @@ public sealed class IReGoPatientEvaluationService : IIReGoPatientEvaluationServi
         CancellationToken cancellationToken = default)
     {
         var raw = await _repository.LoadPatientDataAsync(
-            context.PatientId,
+            context,
             cancellationToken);
         var issues = new List<ToolIssueDto>();
+        issues.AddRange(raw.SourceIssues);
 
         if (raw.Patient == null || raw.Patient.IsDeleted == true)
         {
@@ -86,7 +87,8 @@ public sealed class IReGoPatientEvaluationService : IIReGoPatientEvaluationServi
                 continue;
             }
 
-            if (template.ModelId != 1)
+            // The template model code belongs to the physical source schema.
+            if (template.ModelId != (raw.SourceSystem == "project" ? 0 : 1))
             {
                 referenceAnomalyCount++;
                 issues.Add(Issue(
@@ -123,10 +125,9 @@ public sealed class IReGoPatientEvaluationService : IIReGoPatientEvaluationServi
                 continue;
             }
 
-            // robotdb_main report.Id is the plan Id, so one plan has at most
-            // one summary report. reportdata/reportdata_new rows are not
-            // additional summary reports.
-            var report = planReports[0];
+            // Use the most recently stored summary deterministically.
+            var report = planReports.OrderByDescending(r => r.UpdateTime ?? r.CreateTime)
+                .ThenByDescending(r => r.Id).First();
             strictReportCount++;
             var parsed = _parser.Parse(report.ReportDetails);
             var sessionIssues = new List<ToolIssueDto>();

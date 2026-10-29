@@ -3,6 +3,10 @@ using SqlSugar;
 [SugarTable("dbrehaplan")]
 public class RehabPlanEntity
 {
+    [SugarColumn(IsIgnore = true)]
+    public AI_WebApi.Model.DTOs.AITools.RecordTenantDto? RecordTenant { get; set; }
+    [SugarColumn(IsIgnore = true)]
+    public string? OwnerUserRef { get; set; }
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
     public int Id { get; set; }
 

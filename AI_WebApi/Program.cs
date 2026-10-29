@@ -39,8 +39,10 @@ builder.Services.AddScoped<IDifyServiceRequestAuthenticator,
     DifyServiceRequestAuthenticator>();
 builder.Services.AddHttpClient();
 builder.Services.AddMemoryCache();
+builder.Services.Configure<PatientAccessOptions>(builder.Configuration.GetSection(PatientAccessOptions.SectionName));
+builder.Services.AddScoped<PatientV2ScopeFilter>();
 
-builder.Services.AddControllers()
+builder.Services.AddControllers(options => options.Conventions.Add(new PatientV2RoutingConvention()))
     .AddNewtonsoftJson(options =>
     {
         options.SerializerSettings.ReferenceLoopHandling =
@@ -52,24 +54,15 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.SwaggerDoc(PatientV2RoutingConvention.GroupName, new OpenApiInfo
+    {
+        Title = "AI Patient Rehabilitation Tools v2", Version = "2.0.0",
+        Description = "患者本人康复查询；默认 all_tenants，可选 current_tenant。身份由业务后端签发的短期凭证绑定，记录按实际所属机构标注。"
+    });
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "AI_WebApi",
         Version = "1.0"
-    });
-
-    options.SwaggerDoc("ai-patient-tools-v1", new OpenApiInfo
-    {
-        Title = "AI Patient Tools API",
-        Version = IReGoContract.Version,
-        Description =
-            "面向 Dify 的患者端只读工具。Authorization 由 Dify 工具凭据提供；" +
-            "system_context 必须由 Dify 系统/运行时变量注入，不得由 LLM 推断。" +
-            "session_ref 只能选择工具已经返回的稳定匿名引用，不得自行编造。" +
-            "按 IReGo、IReTour、IReCog 和线上量表对象组织概览、历史、单次、多次及报表工具。" +
-            "IReGo 使用独立 robot 身份；IReTour/IReCog/线上量表使用 project 身份，网关负责授权。" +
-            "ReportList 元素为报告记录分段，不得表述为多个独立训练项目。报告图片以稳定 artifact_ref 持久化；" +
-            "展示地址按需生成，不应写入聊天记录。"
     });
 
     options.SwaggerDoc("ai-hospital-tools-v1", new OpenApiInfo
@@ -107,11 +100,11 @@ builder.Services.AddSwaggerGen(options =>
     options.SchemaFilter<DifySystemContextSchemaFilter>();
     options.DocInclusionPredicate((docName, apiDesc) => docName switch
     {
-        "ai-patient-tools-v1" => apiDesc.GroupName == "ai-patient-tools-v1",
+        "ai-patient-tools-v2" => apiDesc.GroupName == "ai-patient-tools-v2",
         "ai-hospital-tools-v1" => apiDesc.GroupName == "ai-hospital-tools-v1",
         "ai-rehab-tools-v1" => apiDesc.GroupName == "ai-rehab-tools-v1",
         _ => apiDesc.GroupName is not (
-            "ai-patient-tools-v1" or "ai-hospital-tools-v1" or
+            "ai-patient-tools-v2" or "ai-hospital-tools-v1" or
             "ai-rehab-tools-v1")
     });
     options.CustomOperationIds(apiDesc =>
@@ -140,8 +133,8 @@ if (app.Environment.IsDevelopment())
             "/swagger/v1/swagger.json",
             "AI_WebApi v1");
         options.SwaggerEndpoint(
-            "/swagger/ai-patient-tools-v1/swagger.json",
-            "AI Patient Tools v1");
+            "/swagger/ai-patient-tools-v2/swagger.json",
+            "AI Patient Tools v2");
         options.SwaggerEndpoint(
             "/swagger/ai-hospital-tools-v1/swagger.json",
             "AI Hospital Operations Tools v1");
@@ -163,7 +156,7 @@ app.MapGet(
         "/api/ai/patients/tools/openapi.json",
         (ISwaggerProvider swaggerProvider, HttpRequest request) =>
         {
-            var document = swaggerProvider.GetSwagger("ai-patient-tools-v1");
+            var document = swaggerProvider.GetSwagger("ai-patient-tools-v2");
             document.Servers = new List<OpenApiServer>
             {
                 new() { Url = $"{request.Scheme}://{request.Host.Value}" }

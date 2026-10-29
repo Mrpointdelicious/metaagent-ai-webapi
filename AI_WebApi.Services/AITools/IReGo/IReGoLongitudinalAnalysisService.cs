@@ -110,7 +110,13 @@ public sealed class IReGoLongitudinalAnalysisService :
                 "所选报告范围内没有符合当前项目范围的训练记录。");
         }
 
-        var reportDtos = positions.Select(ToReportDto).ToArray();
+        if (context.Access is { } access)
+            foreach (var position in positions)
+            {
+                var record = "project.dbrehaplan:" + position.Session.Plan.Id;
+                access.BindReference(access.Reference("record", record), record);
+            }
+        var reportDtos = positions.Select(position => ToReportDto(position, context.Access)).ToArray();
         var completeCount = positions.Count(x => x.IsComplete);
         var reasons = new List<string>();
         if (selection.WasTruncated)
@@ -201,19 +207,22 @@ public sealed class IReGoLongitudinalAnalysisService :
                 new IReGoSourceDto
                 {
                     SourceSystem = evaluation.Raw.SourceSystem,
-                    SourceObject = "robotdb_main.rehabplan",
+                    SourceObject = "project.dbrehaplan",
                     Role = "report_order_plan_and_state",
                     Completeness = evaluation.Raw.SourceCompleteness
                 },
                 new IReGoSourceDto
                 {
                     SourceSystem = evaluation.Raw.SourceSystem,
-                    SourceObject = "robotdb_main.report.details.ReportList",
+                    SourceObject = "project.dbreport.ReportDetails.ReportList",
                     Role = "same_project_segment_metrics",
                     Completeness = evaluation.Raw.SourceCompleteness
                 }
             }
         };
+
+        AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.Annotate(data, context.Access);
+        data.SourceSnapshot = AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.SourceSnapshot(data, context.Access);
 
         return ToolResponseDto<IReGoLongitudinalAnalysisDto>.Create(
             "get_irego_longitudinal_analysis",
@@ -856,6 +865,8 @@ public sealed class IReGoLongitudinalAnalysisService :
 
             var point = new IReGoLongitudinalMetricPointDto
             {
+                RecordTenant = position.Session.Plan.RecordTenant,
+                OwnerUserRef = position.Session.Plan.OwnerUserRef,
                 ReportOrdinal = position.Ordinal,
                 SessionRef = position.IsComplete
                     ? position.SessionRef
@@ -1124,8 +1135,11 @@ public sealed class IReGoLongitudinalAnalysisService :
             "single_walking" or "single_sit";
 
     private static IReGoLongitudinalReportPositionDto ToReportDto(
-        SelectedPosition position) => new()
+        SelectedPosition position, PatientAccessContext? access) => new()
         {
+            RecordRef = access?.Reference("record", "project.dbrehaplan:" + position.Session.Plan.Id),
+            RecordTenant = position.Session.Plan.RecordTenant,
+            OwnerUserRef = position.Session.Plan.OwnerUserRef,
             Ordinal = position.Ordinal,
             SessionRef = position.IsComplete
                 ? position.SessionRef

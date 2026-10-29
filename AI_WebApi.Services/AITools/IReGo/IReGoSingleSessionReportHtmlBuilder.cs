@@ -221,7 +221,7 @@ public sealed class IReGoSingleSessionReportHtmlBuilder :
         html.Append("</main><footer><span>IREGO 单次训练报告</span><span>")
             .Append(E(analysis.Time.ReportRecordedAt?.ToString("yyyy-MM-dd") ?? ""))
             .Append("</span></footer></article></body></html>");
-        return html.ToString();
+        return AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.AddToHtml(html.ToString(), analysis);
     }
 
     private static void BuildHero(

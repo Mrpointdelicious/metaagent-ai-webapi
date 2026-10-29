@@ -10,6 +10,8 @@ namespace AI_WebApi.Model.Entities;
 [SugarTable("dbwalk")]
 public sealed class IReTourWalkEntity
 {
+    [SugarColumn(IsIgnore = true)] public AI_WebApi.Model.DTOs.AITools.RecordTenantDto? RecordTenant { get; set; }
+    [SugarColumn(IsIgnore = true)] public int? VerifiedBusinessId { get; set; }
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
     public int Id { get; set; }
 

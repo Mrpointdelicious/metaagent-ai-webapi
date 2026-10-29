@@ -9,7 +9,7 @@ namespace AI_WebApi.Controllers;
 
 [ApiController]
 [Route("api/ai/patients/tools")]
-[ApiExplorerSettings(GroupName = "ai-patient-tools-v1")]
+[ApiExplorerSettings(GroupName = "ai-patient-tools-v2")]
 public sealed class IReCogToolsController : ControllerBase
 {
     private readonly IIReCogToolService _service;

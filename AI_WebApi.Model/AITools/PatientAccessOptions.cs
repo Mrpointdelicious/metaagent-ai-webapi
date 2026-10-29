@@ -1,0 +1,19 @@
+namespace AI_WebApi.Model.AITools;
+
+public sealed class PatientAccessOptions
+{
+    public const string SectionName = "PatientAccess";
+    public string IdentitySigningKey { get; set; } = string.Empty;
+    public int MaximumProofLifetimeSeconds { get; set; } = 900;
+    public List<int[]> ConfirmedAccountGroups { get; set; } = new();
+    // Opt in only after the source FK namespace has been verified by the business.
+    public bool WalkUserIdsUseProjectNamespace { get; set; }
+    public List<ConfirmedWalkRecordBinding> ConfirmedWalkRecords { get; set; } = new();
+}
+
+public sealed class ConfirmedWalkRecordBinding
+{
+    public int WalkId { get; set; }
+    public int ProjectUserId { get; set; }
+    public int? BusinessId { get; set; }
+}

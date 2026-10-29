@@ -7,6 +7,7 @@ namespace AI_WebApi.Model.DTOs.AITools;
 public sealed class AssessmentToolRequestDto
 {
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public int PageNumber { get; init; } = 1;
     public int PageSize { get; init; } = 10;
     public int? ScaleType { get; init; }
@@ -22,6 +23,10 @@ public sealed class AssessmentToolRequestDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class AssessmentRecordDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public string AssessmentRef { get; init; } = string.Empty;
     public int? ScaleType { get; init; }
     public string? ScaleName { get; init; }
@@ -66,6 +71,8 @@ public sealed class AssessmentScaleCoverageDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class AssessmentReportArtifactDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public IReadOnlyList<PatientTenantSegmentDto>? TenantSegments { get; init; }
     public string ArtifactRef { get; init; } = string.Empty;
     public string ImageUrl { get; init; } = string.Empty;
     public string MimeType { get; init; } = "image/png";

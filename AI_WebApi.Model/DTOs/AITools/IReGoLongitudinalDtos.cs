@@ -7,6 +7,7 @@ namespace AI_WebApi.Model.DTOs.AITools;
 public sealed class GetIReGoLongitudinalAnalysisRequestDto
 {
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
 
     /// <summary>
     /// Semantic selection that never exposes database or signed session ids.
@@ -45,6 +46,7 @@ public sealed class GetIReGoLongitudinalAnalysisRequestDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoLongitudinalAnalysisDto
 {
+    public string SourceSnapshot { get; set; } = string.Empty;
     public string PatientRef { get; init; } = string.Empty;
     public IReGoLongitudinalWindowDto Window { get; init; } = new();
     public IReadOnlyList<IReGoLongitudinalReportPositionDto> Reports
@@ -83,6 +85,12 @@ public sealed class IReGoLongitudinalWindowDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoLongitudinalReportPositionDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? RecordRef { get; init; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public int Ordinal { get; init; }
     public string SessionRef { get; init; } = string.Empty;
     public DateTimeOffset? SessionTime { get; init; }
@@ -158,6 +166,10 @@ public sealed class IReGoLongitudinalMetricSeriesDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoLongitudinalMetricPointDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? OwnerUserRef { get; set; }
     public int ReportOrdinal { get; init; }
     public string SessionRef { get; init; } = string.Empty;
     public string Status { get; init; } = "metric_missing";
@@ -233,6 +245,7 @@ public sealed class IReGoCapabilityEvaluationDto
     public string ExtendedExplanation { get; init; } = string.Empty;
     /// <summary>Guarded activity relevance for stroke rehabilitation.</summary>
     public string LifeHint { get; init; } = string.Empty;
+    [JsonIgnore]
     public string PatientMessage { get; init; } = string.Empty;
     public IReadOnlyList<string> EvidenceMetricCodes { get; init; } =
         Array.Empty<string>();
@@ -245,7 +258,9 @@ public sealed class IReGoCapabilityEvaluationDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class GenerateIReGoLongitudinalReportRequestDto
 {
+    public string? ExpectedSourceSnapshot { get; init; }
     public DifySystemContextDto? SystemContext { get; init; }
+    public string? DataScope { get; init; }
     public string SelectionMode { get; init; } = "latest_count";
     public int? StartOrdinal { get; init; }
     public int? EndOrdinal { get; init; }
@@ -265,6 +280,9 @@ public sealed class GenerateIReGoLongitudinalReportRequestDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class IReGoLongitudinalReportArtifactDto
 {
+    public string SourceSnapshot { get; init; } = string.Empty;
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public IReadOnlyList<PatientTenantSegmentDto>? TenantSegments { get; init; }
     public string ArtifactRef { get; init; } = string.Empty;
     public string StorageMode { get; init; } = "ephemeral";
     public string MimeType { get; init; } = "image/png";

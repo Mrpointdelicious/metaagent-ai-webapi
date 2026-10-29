@@ -43,10 +43,10 @@ public sealed class IReCogToolService : IIReCogToolService
         if (_options.SessionRefSigningKey.Length < 32) return Fail("IRECOG_SIGNING_KEY_NOT_CONFIGURED", "IReCog 引用签名未配置。");
         var source = await _repository.LoadAsync(context, cancellationToken);
         var patient = source.Patient;
-        if (patient == null || patient.Id != context.PatientId || patient.Status != 1 || patient.IsDeleted != 0 || patient.BusinessId is not > 0)
+        if (patient == null || patient.Id != context.PatientId || patient.Status != 1 || patient.IsDeleted != 0 || context.Access == null && patient.BusinessId is not > 0)
             return Fail("PATIENT_SCOPE_UNAVAILABLE", "无法确认当前患者数据范围。");
-        var rows = source.Plans.Where(p => p.UserId == patient.Id && p.BusinessId == patient.BusinessId)
-            .Select(p => Project(p, source.Reports.Where(r => r.PlanId == p.Id).ToArray(), patient.BusinessId.Value))
+        var rows = source.Plans.Where(p => context.Access != null ? context.Access.AllowsOwner(p.UserId) && context.Access.AllowsTenant(p.BusinessId) : p.UserId == patient.Id && p.BusinessId == patient.BusinessId)
+            .Select(p => Project(p, source.Reports.Where(r => r.PlanId == p.Id).ToArray(), context.Access == null ? patient.BusinessId!.Value : p.BusinessId ?? 0, context))
             .OrderByDescending(p => p.RecordedAt).ThenBy(p => p.SessionRef, StringComparer.Ordinal).ToArray();
         IReadOnlyList<IReCogSessionDto> chosen;
         if (operation == "patient_context") chosen = Array.Empty<IReCogSessionDto>();
@@ -89,7 +89,7 @@ public sealed class IReCogToolService : IIReCogToolService
         return Response(tool, requestId, reasons.Count > 0 ? ToolStatuses.Partial : ToolStatuses.Success, data, reasons);
     }
 
-    private IReCogSessionDto Project(RehabPlanEntity plan, RehabReportEntity[] reports, int institution)
+    private IReCogSessionDto Project(RehabPlanEntity plan, RehabReportEntity[] reports, int institution, TrustedPatientContext context)
     {
         var reason = new List<string>();
         var state = "no_result";
@@ -122,8 +122,9 @@ public sealed class IReCogToolService : IIReCogToolService
         return new()
         {
             SessionRef = "irecog_s_v1_" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(_options.SessionRefSigningKey),
-                Encoding.UTF8.GetBytes($"irecog|project|{institution}|{plan.UserId}|{plan.Id}"))).ToLowerInvariant(),
+                Encoding.UTF8.GetBytes($"irecog|project|{institution}|{plan.UserId}|{plan.Id}" + (context.Access == null ? string.Empty : "|scope:" + context.Access.ScopeFingerprint)))).ToLowerInvariant(),
             RecordedAt = Time(reports.OrderByDescending(r => r.CreateTime).FirstOrDefault()?.CreateTime) ?? Time(plan.StartTime) ?? Time(plan.BookingTime) ?? Time(plan.CreateTime),
+            RecordTenant = plan.RecordTenant, OwnerUserRef = plan.OwnerUserRef,
             SourceCompletionFlag = plan.IsComplete, ResultState = state, ReportedScore = score, InstrumentTitle = title,
             InstrumentRef = title == null ? null : "observed_instrument_" + Hash($"{plan.TemplateId}|{title}"),
             SchemaFamily = schema, ReasonCodes = reason
@@ -152,6 +153,7 @@ public sealed class IReCogToolService : IIReCogToolService
         var url = origin.TrimEnd('/') + "/api/ai/patients/report-artifacts/" + Uri.EscapeDataString(reference) + "/content";
         return Response(tool, requestId, ToolStatuses.Partial, new IReTourSingleSessionReportArtifactDto
         {
+            TenantSegments = AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.Segments(data, context.Access),
             ArtifactRef = reference, ImageUrl = url, DisplayMarkdown = $"![IReCog测评记录汇总]({url})",
             SourceSnapshot = data.SourceSnapshot, TemplateVersion = _options.ReportTemplateVersion, StorageMode = _artifacts.StorageMode
         }, analysis.ReasonCodes);
@@ -171,7 +173,7 @@ public sealed class IReCogToolService : IIReCogToolService
                 })).Append("</td></tr>");
         html.Append("</table><section class=\"note\"><h2>解读范围</h2><ul>");
         foreach (var note in data.Interpretation.Limitations.Concat(data.Interpretation.NextChecks)) html.Append("<li>").Append(E(note)).Append("</li>");
-        return html.Append("</ul></section><p><small>数据快照 ").Append(E(data.SourceSnapshot)).Append("</small></p></main></html>").ToString();
+        return AI_WebApi.Services.AITools.PatientContext.RecordTenantPresentation.AddToHtml(html.Append("</ul></section><p><small>数据快照 ").Append(E(data.SourceSnapshot)).Append("</small></p></main></html>").ToString(), data);
     }
 
     private static bool Valid(IReCogRequestDto r, string operation) => r.PageNumber is >= 1 and <= 100000 && r.PageSize is >= 1 and <= 50 &&
