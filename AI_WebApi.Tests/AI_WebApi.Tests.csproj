@@ -30,5 +30,7 @@
     <Using Include="Microsoft.Extensions.Logging" />
     <Compile Include="..\AI_WebApi\Controllers\IReGoToolsController.cs" Link="HttpBoundary\IReGoToolsController.cs" />
     <Compile Include="..\AI_WebApi\Security\DifySystemContextResolver.cs" Link="HttpBoundary\DifySystemContextResolver.cs" />
+    <Compile Include="..\AI_WebApi\Controllers\AiRehabToolsController.cs" Link="HttpBoundary\AiRehabToolsController.cs" />
+    <Compile Include="..\AI_WebApi\Security\DifyServiceRequestAuthenticator.cs" Link="HttpBoundary\DifyServiceRequestAuthenticator.cs" />
   </ItemGroup>
 </Project>
