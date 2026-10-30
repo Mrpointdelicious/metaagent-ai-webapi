@@ -43,7 +43,9 @@ public sealed class DifyToolSecurityOperationFilter : IOperationFilter
             operation.Summary = "将自然语言场景指令解析为元宇宙点位指令";
             operation.Description =
                 "target 使用用户原始指令；space_id 为空时使用服务端默认空间。" +
-                "服务端根据当前空间版本读取点位并匹配，不允许 Agent 编造点位编号。";
+                "服务端返回有序 commands；仅 matched 项有可执行字符串，歧义项不返回编号。" +
+                "expectedSceneVersion 可选，由调用方可信场景上下文提供；不匹配返回409且data为空。" +
+                "旧单条 result 等字段仅在一条明确匹配时提供，不允许 Agent 编造点位编号。";
         }
 
         if (operation.OperationId == "resolve_patient_identity")
@@ -155,6 +157,9 @@ public sealed class DifySystemContextSchemaFilter : ISchemaFilter
 {
     public void Apply(OpenApiSchema schema, SchemaFilterContext context)
     {
+        if (context.Type == typeof(SceneOperationToolRequestDto))
+            Describe(schema, "expectedSceneVersion", "可选的当前场景版本，由可信上下文提供；冲突返回409且无动作。");
+
         if (context.Type == typeof(ResolvePatientIdentityRequestDto))
         {
             Annotate(

@@ -76,6 +76,7 @@ public sealed class AiRehabToolsController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<SceneOperationToolResponseDto>), 200)]
     [ProducesResponseType(typeof(ApiResponse<SceneOperationToolResponseDto>), 400)]
     [ProducesResponseType(typeof(ApiResponse<SceneOperationToolResponseDto>), 401)]
+    [ProducesResponseType(typeof(ApiResponse<SceneOperationToolResponseDto>), 409)]
     [ProducesResponseType(typeof(ApiResponse<SceneOperationToolResponseDto>), 502)]
     public async Task<ActionResult<ApiResponse<SceneOperationToolResponseDto>>>
         NavigateScene(
@@ -91,10 +92,10 @@ public sealed class AiRehabToolsController : ControllerBase
                     "工具服务认证失败",
                     authentication.HttpStatusCode));
         }
-        if (request == null || string.IsNullOrWhiteSpace(request.Target))
+        if (request == null || string.IsNullOrWhiteSpace(request.Target) || request.ExpectedSceneVersion < 0)
         {
             return BadRequest(ApiResponse<SceneOperationToolResponseDto>.Error(
-                "target required",
+                "target required; expectedSceneVersion must be nonnegative",
                 StatusCodes.Status400BadRequest));
         }
         try
@@ -103,6 +104,14 @@ public sealed class AiRehabToolsController : ControllerBase
                 request.Target,
                 request.SpaceId,
                 cancellationToken);
+            if (request.ExpectedSceneVersion.HasValue && request.ExpectedSceneVersion.Value != result.Version)
+            {
+                return StatusCode(
+                    StatusCodes.Status409Conflict,
+                    ApiResponse<SceneOperationToolResponseDto>.Error(
+                        "场景版本已变化，请刷新后重试",
+                        StatusCodes.Status409Conflict));
+            }
             return Ok(ApiResponse<SceneOperationToolResponseDto>.Success(
                 result,
                 "OK"));
@@ -114,10 +123,7 @@ public sealed class AiRehabToolsController : ControllerBase
         }
         catch (Exception exception)
         {
-            _logger.LogError(
-                exception,
-                "navigate_scene failed, target={Target}",
-                request.Target);
+            _logger.LogError(exception, "navigate_scene failed");
             return StatusCode(
                 StatusCodes.Status502BadGateway,
                 ApiResponse<SceneOperationToolResponseDto>.Error(
