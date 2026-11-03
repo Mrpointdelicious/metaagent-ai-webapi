@@ -22,8 +22,10 @@ public sealed class PatientAccessContextResolver : IPatientAccessContextResolver
 {
     private readonly IPatientAccessRepository _repository;
     private readonly PatientAccessOptions _options;
-    public PatientAccessContextResolver(IPatientAccessRepository repository, IOptions<PatientAccessOptions> options)
-    { _repository = repository; _options = options.Value; }
+    private readonly IDoctorDelegationValidator? _delegations;
+    public PatientAccessContextResolver(IPatientAccessRepository repository, IOptions<PatientAccessOptions> options,
+        IDoctorDelegationValidator? delegations = null)
+    { _repository = repository; _options = options.Value; _delegations = delegations; }
 
     public async Task<PatientAccessResolution> ResolveAsync(DifySystemContextDto? input, string? dataScope, string requestId, CancellationToken ct)
     {
@@ -31,8 +33,11 @@ public sealed class PatientAccessContextResolver : IPatientAccessContextResolver
         if (Encoding.UTF8.GetByteCount(_options.IdentitySigningKey) < 32) return Deny("PATIENT_IDENTITY_SIGNING_NOT_CONFIGURED", 503);
         var scope = dataScope ?? "all_tenants";
         if (scope is not ("all_tenants" or "current_tenant")) return Deny("INVALID_DATA_SCOPE", 400);
-        var proof = PatientIdentityProofCodec.Verify(input?.IdentityContextToken, _options.IdentitySigningKey, DateTimeOffset.UtcNow, _options.MaximumProofLifetimeSeconds);
+        var proof = PatientIdentityProofCodec.VerifyForAccess(input?.IdentityContextToken, _options, DateTimeOffset.UtcNow);
         if (proof == null || input?.User != proof.Subject) return Deny("PATIENT_IDENTITY_PROOF_INVALID");
+        var doctor = proof.ActorRole == "doctor";
+        if (doctor && (scope != "current_tenant" || _delegations == null ||
+            !await _delegations.ValidateAsync(proof.DoctorDelegation!, ct))) return Deny("DOCTOR_DELEGATION_DENIED", 403);
         if (scope == "all_tenants" && !proof.AllowAllTenants) return Deny("PATIENT_SCOPE_FORBIDDEN", 403);
         if (input.CurrentBusinessId.HasValue && input.CurrentBusinessId != proof.CurrentBusinessId) return Deny("CURRENT_TENANT_MISMATCH", 403);
         if (input.ConversationId?.Length > 256) return Deny("INVALID_DIFY_SYSTEM_CONTEXT", 400);
@@ -46,7 +51,7 @@ public sealed class PatientAccessContextResolver : IPatientAccessContextResolver
         if (anchor.Id != proof.AnchorUserId) return Deny("PATIENT_IDENTITY_MISMATCH", 403);
         if (anchor.Status != 1 || anchor.IsDeleted == true) return Deny("PATIENT_ACCOUNT_UNAVAILABLE", 403);
         var explicitIds = new HashSet<int> { anchor.Id };
-        for (var pass = 0; pass < _options.ConfirmedAccountGroups.Count; pass++)
+        for (var pass = 0; !doctor && pass < _options.ConfirmedAccountGroups.Count; pass++)
             foreach (var group in _options.ConfirmedAccountGroups.Where(g => g.Any(explicitIds.Contains))) explicitIds.UnionWith(group.Where(id => id > 0));
         if (explicitIds.Count > 100) return Deny("PATIENT_IDENTITY_READ_LIMIT", 503);
         var source = await _repository.LoadRelatedAsync(anchor, explicitIds.ToArray(), ct);
@@ -62,7 +67,7 @@ public sealed class PatientAccessContextResolver : IPatientAccessContextResolver
         var phoneProof = !string.IsNullOrWhiteSpace(anchor.Phone) && !string.IsNullOrEmpty(proof.PhoneBindingHash) &&
             CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(proof.PhoneBindingHash),
                 Encoding.UTF8.GetBytes(PatientIdentityProofCodec.PhoneBindingHash(anchor.Phone, _options.IdentitySigningKey)));
-        foreach (var candidate in source.Accounts.Where(u => u.Id != anchor.Id))
+        foreach (var candidate in source.Accounts.Where(u => !doctor && u.Id != anchor.Id))
         {
             if (explicitIds.Contains(candidate.Id)) { ids.Add(candidate.Id); continue; }
             if (!phoneProof) { issues.Add("PHONE_ASSOCIATION_UNVERIFIED"); continue; }
@@ -76,7 +81,7 @@ public sealed class PatientAccessContextResolver : IPatientAccessContextResolver
         var walks = _options.ConfirmedWalkRecords.Where(w => ids.Contains(w.ProjectUserId) && w.WalkId > 0)
             .GroupBy(w => w.WalkId).Where(g => g.Select(w => (w.ProjectUserId, w.BusinessId)).Distinct().Count() == 1)
             .ToDictionary(g => g.Key, g => g.First());
-        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new
+        var scopeMaterial = JObject.FromObject(new
         {
             version = "patient-access-v2", proof.Subject, anchor.Id, scope,
             tenant = scope == "current_tenant" ? proof.CurrentBusinessId : null,
@@ -85,7 +90,9 @@ public sealed class PatientAccessContextResolver : IPatientAccessContextResolver
             memberships = source.Memberships.OrderBy(t => t.UserId).ThenBy(t => t.BusinessId).ThenBy(t => t.Enable),
             walk_namespace = _options.WalkUserIdsUseProjectNamespace, walks = walks.Values.OrderBy(w => w.WalkId),
             institution_names = source.Institutions.OrderBy(t => t.Key)
-        })))).ToLowerInvariant();
+        });
+        if (doctor) scopeMaterial["DoctorDelegation"] = JObject.FromObject(proof.DoctorDelegation!);
+        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(scopeMaterial.ToString(Formatting.None)))).ToLowerInvariant();
         var access = new PatientAccessContext(_options.IdentitySigningKey)
         {
             AnchorUserId = anchor.Id, Subject = proof.Subject, CurrentBusinessId = proof.CurrentBusinessId, DataScope = scope,

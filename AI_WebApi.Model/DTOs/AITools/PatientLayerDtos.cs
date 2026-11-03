@@ -23,6 +23,7 @@ public sealed class PatientProfileDto
 {
     public string PatientRef { get; init; } = string.Empty;
     public IReadOnlyDictionary<string, object?> Profile { get; init; } = new Dictionary<string, object?>();
+    public IReadOnlyDictionary<string, object?> CareContext { get; init; } = new Dictionary<string, object?>();
     public string Source { get; init; } = "project.dbuser.UserDetails";
     public IReadOnlyList<string> Limitations { get; init; } = Array.Empty<string>();
 }
@@ -42,6 +43,8 @@ public sealed class PatientConsultationDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class PatientMedicalRecordDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
     public int RecordId { get; init; }
     public DateTime? RecordedAt { get; init; }
     public string? MedicalRecord { get; init; }
@@ -67,6 +70,8 @@ public sealed class PatientPrescriptionDto
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
 public sealed class PatientConsultationRecordDto
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public RecordTenantDto? RecordTenant { get; set; }
     public int RecordId { get; init; }
     public int? MedicalId { get; init; }
     public DateTime? CreatedAt { get; init; }

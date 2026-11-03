@@ -12,6 +12,28 @@ namespace AI_WebApi.Tests;
 
 public sealed class PatientAccessContextTests
 {
+    [Fact]
+    public async Task Patient_scope_fingerprint_preserves_the_pre_doctor_v2_material()
+    {
+        using var db = new PatientAccessTestDatabase();
+        var repository = new PatientAccessRepository(db);
+        var proof = Proof();
+        var anchor = (await repository.FindAnchorAsync("project_user_id", "7", default)).Single();
+        var source = await repository.LoadRelatedAsync(anchor, new[] { 7 }, default);
+        // Frozen patient-only v2 material: adding doctor support must not invalidate patient references.
+        var legacy = Newtonsoft.Json.JsonConvert.SerializeObject(new
+        {
+            version = "patient-access-v2", proof.Subject, anchor.Id, scope = "all_tenants", tenant = (int?)null,
+            owners = new[] { 7, 8 }, phone_binding = PatientIdentityProofCodec.PhoneBindingHash(anchor.Phone, Key),
+            roles = source.Roles.OrderBy(r => r.UserId).ThenBy(r => r.BusinessId).ThenBy(r => r.RoleId).ThenBy(r => r.Enable),
+            memberships = source.Memberships.OrderBy(t => t.UserId).ThenBy(t => t.BusinessId).ThenBy(t => t.Enable),
+            walk_namespace = false, walks = Array.Empty<ConfirmedWalkRecordBinding>(),
+            institution_names = source.Institutions.OrderBy(t => t.Key)
+        });
+        var expected = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(legacy))).ToLowerInvariant();
+        var result = await Resolver(db).ResolveAsync(Input(proof), "all_tenants", "r", default);
+        Assert.Equal(expected, result.Context!.Access!.ScopeFingerprint);
+    }
     internal const string Key = "synthetic-patient-access-signing-key-20261029";
     internal static PatientIdentityProof Proof(int owner=7,int? tenant=1,bool phone=true) => new()
     {

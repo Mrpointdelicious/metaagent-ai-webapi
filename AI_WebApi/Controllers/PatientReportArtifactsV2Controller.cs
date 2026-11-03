@@ -30,7 +30,7 @@ public sealed class PatientReportArtifactsV2Controller : ControllerBase
             User = identity.Subject,
             PatientIdentity = new() { Type = "project_user_id", Value = identity.AnchorUserId.ToString(System.Globalization.CultureInfo.InvariantCulture) },
             CurrentBusinessId = identity.CurrentBusinessId,
-            IdentityContextToken = PatientIdentityProofCodec.Issue(identity, _options.IdentitySigningKey)
+            IdentityContextToken = PatientIdentityProofCodec.IssueForAccess(identity, _options)
         }, grant.DataScope, HttpContext.TraceIdentifier, ct);
         if (!resolved.IsSuccess || resolved.Context!.Access!.ScopeFingerprint != grant.ScopeFingerprint) return StatusCode(403);
         return _store.TryGet(artifactRef, out var bytes) ? File(bytes, "image/png") : NotFound();

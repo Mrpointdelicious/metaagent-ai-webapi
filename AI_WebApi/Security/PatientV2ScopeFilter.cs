@@ -82,7 +82,7 @@ public sealed class PatientV2ScopeFilter : IAsyncActionFilter
             if (description.Coverage == "partial" && json.Value<string>("status") == ToolStatuses.Success) json["status"] = ToolStatuses.Partial;
             if (json["data"] is JObject artifact && artifact.Value<string>("artifact_ref") is { } reference && reference.StartsWith("irego_scope_v2_", StringComparison.Ordinal))
             {
-                var proof = PatientIdentityProofCodec.Verify(system?.IdentityContextToken, _options.IdentitySigningKey, DateTimeOffset.UtcNow, _options.MaximumProofLifetimeSeconds)!;
+                var proof = PatientIdentityProofCodec.VerifyForAccess(system?.IdentityContextToken, _options, DateTimeOffset.UtcNow)!;
                 var expiry = Math.Min(DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(), proof.ExpiresAt);
                 var grant = PatientArtifactGrantCodec.Issue(new(reference, access.ScopeFingerprint, access.DataScope, proof, expiry), _options.IdentitySigningKey);
                 var oldUrl = artifact.Value<string>("image_url");

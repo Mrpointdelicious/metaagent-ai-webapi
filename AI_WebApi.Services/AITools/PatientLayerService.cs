@@ -4,6 +4,7 @@ using AI_WebApi.Model.DTOs.AITools;
 using AI_WebApi.Model.Entities;
 using AI_WebApi.Repository.AITools;
 using Newtonsoft.Json.Linq;
+using System.Globalization;
 
 namespace AI_WebApi.Services.AITools;
 
@@ -56,20 +57,61 @@ public sealed class PatientLayerService : IPatientLayerService
                 ["medicalHistory"] = "self_reported_medical_history",
                 ["pastHistory"] = "self_reported_past_history",
                 ["allergyHistory"] = "self_reported_allergy_history",
-                ["diagnosis"] = "profile_diagnosis"
+                ["diagnosis"] = "profile_diagnosis", ["familyHistory"] = "self_reported_family_history",
+                ["rehabilitationDetails"] = "rehabilitation_details", ["degree"] = "education",
+                ["birthday"] = "birth_date", ["operationTime"] = "operation_date"
             };
             foreach (var field in fields)
             {
-                var token = info.GetValue(field.Key, StringComparison.OrdinalIgnoreCase)
-                    ?? root.GetValue(field.Key, StringComparison.OrdinalIgnoreCase);
+                var token = info.GetValue(field.Key, StringComparison.OrdinalIgnoreCase);
+                if (token == null || token.Type == JTokenType.Null || string.IsNullOrWhiteSpace(token.ToString()))
+                    token = root.GetValue(field.Key, StringComparison.OrdinalIgnoreCase);
                 if (token == null || token.Type == JTokenType.Null || string.IsNullOrWhiteSpace(token.ToString())) continue;
                 if (field.Key is "age" or "height" or "weight")
                 {
-                    if (!decimal.TryParse(token.ToString(), out var number) || number <= 0) continue;
+                    if (!decimal.TryParse(token.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var number) || number <= 0) continue;
                     result[field.Value] = number;
+                }
+                else if (field.Key is "birthday" or "operationTime")
+                {
+                    if (DateTime.TryParse(token.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) && date.Year > 1900)
+                        result[field.Value] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
                 }
                 else result[field.Value] = Clip(token.ToString());
             }
+            if (info.GetValue("injuryDetails", StringComparison.OrdinalIgnoreCase) is JObject injury)
+            {
+                var details = new Dictionary<string, object?>();
+                if (injury.GetValue("state", StringComparison.OrdinalIgnoreCase) is JValue state && !string.IsNullOrWhiteSpace(state.ToString()))
+                    details["description"] = Clip(state.ToString());
+                if (int.TryParse(injury.GetValue("injuredArea", StringComparison.OrdinalIgnoreCase)?.ToString(), out var area) && area > 0)
+                    details["area_code"] = area;
+                if (DateTime.TryParse(injury.GetValue("injuredTime", StringComparison.OrdinalIgnoreCase)?.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) && date.Year > 1900)
+                    details["injured_on"] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                if (details.Count > 0) result["injury_details"] = details;
+            }
+        }
+        catch (Newtonsoft.Json.JsonException) { }
+        return result;
+    }
+
+    public static IReadOnlyDictionary<string, object?> CareContextFacts(string? json, int institutionId)
+    {
+        var result = new Dictionary<string, object?>();
+        try
+        {
+            var root = JObject.Parse(json ?? "{}");
+            if (root.GetValue("patientInfo", StringComparison.OrdinalIgnoreCase) is not JObject info ||
+                !int.TryParse(info.GetValue("hospitalId", StringComparison.OrdinalIgnoreCase)?.ToString(), out var hospital) || hospital != institutionId)
+                return result;
+            foreach (var pair in new Dictionary<string, string>
+            { ["departmentName"] = "department_name", ["roomNumber"] = "room_number", ["bedNumber"] = "bed_number", ["patientState"] = "patient_state" })
+            {
+                var value = info.GetValue(pair.Key, StringComparison.OrdinalIgnoreCase);
+                if (value is JValue && !string.IsNullOrWhiteSpace(value.ToString())) result[pair.Value] = Clip(value.ToString());
+            }
+            if (DateTime.TryParse(info.GetValue("inDate", StringComparison.OrdinalIgnoreCase)?.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) && date.Year > 1900)
+                result["admitted_on"] = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
         catch (Newtonsoft.Json.JsonException) { }
         return result;
@@ -112,7 +154,9 @@ public sealed class PatientLayerService : IPatientLayerService
         if (patient.Status == -1) limitations.Add("这是历史账号的记录。");
         return Envelope("get_patient_profile", requestId, new PatientProfileDto
         {
-            PatientRef = context.PatientRef, Profile = facts, Limitations = limitations
+            PatientRef = context.PatientRef, Profile = facts, Limitations = limitations,
+            CareContext = context.Access?.DataScope == "current_tenant" && context.Access.CurrentBusinessId is > 0
+                ? CareContextFacts(patient.UserDetails, context.Access.CurrentBusinessId.Value) : new Dictionary<string, object?>()
         });
     }
 
@@ -122,15 +166,15 @@ public sealed class PatientLayerService : IPatientLayerService
         if (await PatientAsync(context, ct) == null)
             return Envelope<PatientConsultationDto>("get_patient_consultation", requestId, null,
                 ToolStatuses.Unavailable, new[] { "PROJECT_PATIENT_NOT_FOUND" }, "未找到该患者。");
-        var medical = await _repository.MedicalAsync(context.PatientId, request.PageNumber, request.PageSize, ct);
-        var consultations = await _repository.ConsultationsAsync(context.PatientId, request.PageNumber, request.PageSize, ct);
+        var medical = await _repository.MedicalAsync(context, request.PageNumber, request.PageSize, ct);
+        var consultations = await _repository.ConsultationsAsync(context, request.PageNumber, request.PageSize, ct);
         var records = new List<PatientMedicalRecordDto>();
         foreach (var row in medical.Rows)
         {
-            var prescriptions = await _repository.PrescriptionsAsync(context.PatientId, row.RecordId, ct);
+            var prescriptions = await _repository.PrescriptionsAsync(context, row.RecordId, ct);
             records.Add(new PatientMedicalRecordDto
             {
-                RecordId = row.RecordId, RecordedAt = row.RecordedAt,
+                RecordId = row.RecordId, RecordedAt = row.RecordedAt, RecordTenant = row.RecordTenant,
                 MedicalRecord = Clip(row.MedicalRecord), Content = MedicalFacts(row.MedicalContent),
                 Summary = Clip(row.Summary), FollowupTime = row.FollowupTime,
                 FollowupHospital = row.FollowupHospital, Prescriptions = prescriptions
@@ -142,7 +186,7 @@ public sealed class PatientLayerService : IPatientLayerService
             ConsultationCount = consultations.Count, MedicalRecords = records,
             Consultations = consultations.Rows,
             Page = Page(request.PageNumber, request.PageSize, Math.Max(medical.Count, consultations.Count)),
-            Limitations = medical.Count == 0 ? new[] { "当前数据库没有该患者的病历记录；不能据此判断没有病史。" } : Array.Empty<string>()
+            Limitations = medical.Count == 0 ? new[] { "当前授权范围没有可读取的有效病历记录；不能据此判断没有病史。" } : Array.Empty<string>()
         });
     }
 

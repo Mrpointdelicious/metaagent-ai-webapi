@@ -38,6 +38,7 @@ builder.Services.AddScoped<IDifySystemContextResolver, DifySystemContextResolver
 builder.Services.AddScoped<IDifyServiceRequestAuthenticator,
     DifyServiceRequestAuthenticator>();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("doctor-delegation").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddMemoryCache();
 builder.Services.Configure<PatientAccessOptions>(builder.Configuration.GetSection(PatientAccessOptions.SectionName));
 builder.Services.AddScoped<PatientV2ScopeFilter>();
