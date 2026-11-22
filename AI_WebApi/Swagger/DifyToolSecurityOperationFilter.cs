@@ -29,7 +29,7 @@ public sealed class DifyToolSecurityOperationFilter : IOperationFilter
             operation.Summary = "患者工具：" + operation.OperationId;
             operation.Description = "统一契约 2.0.0。身份类型显式区分 project_user_id/login_name，登录名保留前导零。" +
                 "system_context 由业务后端和 Dify 运行时注入：user 为已登录主体，identity_context_token 为绑定该主体及入口账号的短期签名凭证。" +
-                "模型不得填写身份凭据、患者编号列表或租户编号。康复记录默认 data_scope=all_tenants；current_tenant 按记录所属机构过滤。" +
+                "模型不得填写身份凭据、患者编号列表或租户编号。患者/学生本人默认 all_tenants，只查该全局账号；医生代查必须使用 current_tenant，按记录机构过滤。" +
                 "record_tenant 标注医院/卫生中心名称及归属依据，query_scope 说明实际范围和覆盖不足。" +
                 "session_ref/assessment_ref 必须来自当前范围的工具结果；切换范围后重新发现引用。" +
                 "只展示已接入且确认属于本人的事实，不将归属不明或未接入视为没有数据。";

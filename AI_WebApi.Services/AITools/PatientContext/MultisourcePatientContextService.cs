@@ -164,7 +164,7 @@ public sealed class MultisourcePatientContextService : IMultisourcePatientContex
                     ? _sessionRefProvider.CreateTenant(
                         evaluation.Raw.Patient.BusinessId.Value)
                     : string.Empty,
-                Role = "patient",
+                Role = context.Access?.ActorRole ?? "patient",
                 BindingStatus = "verified"
             },
             ProfileBrief = BuildProfile(evaluation.Raw.Patient.UserDetails),

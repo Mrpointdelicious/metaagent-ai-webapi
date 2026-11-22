@@ -64,7 +64,8 @@ public static class PatientIdentityProofCodec
                 string.IsNullOrWhiteSpace(grant.Workspace) || grant.Workspace.Length > 100 ||
                 value.Subject != $"doctor-workspace:{grant.Workspace}:{grant.AccountId}" || value.AllowAllTenants || value.PhoneBindingHash != null)) return null;
             return value != null && value.Purpose == (doctor ? "doctor_rehab_v2" : "patient_rehab_v2") &&
-                value.ActorRole == (doctor ? "doctor" : "patient") && (doctor || value.DoctorDelegation == null) && value.AnchorUserId > 0 &&
+                (doctor ? value.ActorRole == "doctor" : value.ActorRole is "patient" or "student") &&
+                (doctor || value.DoctorDelegation == null) && value.AnchorUserId > 0 &&
                 !string.IsNullOrWhiteSpace(value.Subject) && value.Subject.Length <= 256 && value.IssuedAt <= seconds + 30 &&
                 value.ExpiresAt > seconds && value.ExpiresAt > value.IssuedAt &&
                 value.ExpiresAt - value.IssuedAt <= Math.Clamp(maximumLifetimeSeconds, 30, 900) ? value : null;

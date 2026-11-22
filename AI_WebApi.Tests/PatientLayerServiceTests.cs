@@ -58,7 +58,7 @@ public sealed class PatientLayerServiceTests
         var context = new TrustedPatientContext
         {
             PatientId = 7, Access = new PatientAccessContext("unit-test-key")
-            { ScopeFingerprint = "confirmed-scope", UserIds = new[] { 7, 8 } }
+            { ScopeFingerprint = "confirmed-scope", AnchorUserId = 7 }
         };
         var response = await service.ProfileAsync(context, "r", default);
         Assert.Equal(context.PatientRef, response.Data!.PatientRef);
@@ -107,12 +107,13 @@ public sealed class PatientLayerServiceTests
     private sealed class Repository : IPatientLayerRepository
     {
         public bool Deleted { get; init; }
-        public Task<PatientEntity?> PatientAsync(int id, CancellationToken ct) => Task.FromResult<PatientEntity?>(new() { Id = id, IsDeleted = Deleted });
-        public Task<(int, IReadOnlyList<PatientMedicalRow>)> MedicalAsync(int id, int page, int size, CancellationToken ct) => Task.FromResult<(int, IReadOnlyList<PatientMedicalRow>)>((3, new[] { new PatientMedicalRow
+        public Task<PatientEntity?> PatientAsync(TrustedPatientContext context, CancellationToken ct) => Task.FromResult<PatientEntity?>(new() { Id = context.PatientId, IsDeleted = Deleted });
+        public Task<(int, IReadOnlyList<PatientMedicalRow>)> MedicalAsync(TrustedPatientContext context, int page, int size, CancellationToken ct) => Task.FromResult<(int, IReadOnlyList<PatientMedicalRow>)>((3, new[] { new PatientMedicalRow
         { RecordId = 1, MedicalContent = "{\"DiseaseName\":\"诊断\",\"DoctorOrder\":\"原医嘱\"}" } }));
-        public Task<(int, IReadOnlyList<PatientConsultationRecordDto>)> ConsultationsAsync(int id, int page, int size, CancellationToken ct) => Task.FromResult<(int, IReadOnlyList<PatientConsultationRecordDto>)>((0, Array.Empty<PatientConsultationRecordDto>()));
-        public Task<IReadOnlyList<PatientPrescriptionDto>> PrescriptionsAsync(int id, int medicalId, CancellationToken ct) => Task.FromResult<IReadOnlyList<PatientPrescriptionDto>>(Array.Empty<PatientPrescriptionDto>());
-        public Task<(int, IReadOnlyList<PatientRehabPlanDto>)> PlansAsync(int id, int page, int size, CancellationToken ct) => Task.FromResult<(int, IReadOnlyList<PatientRehabPlanDto>)>((1, new[] { new PatientRehabPlanDto { PlanId = 1 } }));
+        public Task<(int, IReadOnlyList<PatientConsultationRecordDto>)> ConsultationsAsync(TrustedPatientContext context, int page, int size, CancellationToken ct) => Task.FromResult<(int, IReadOnlyList<PatientConsultationRecordDto>)>((0, Array.Empty<PatientConsultationRecordDto>()));
+        public Task<IReadOnlyList<PatientPrescriptionDto>> PrescriptionsAsync(TrustedPatientContext context, int medicalId, CancellationToken ct) => Task.FromResult<IReadOnlyList<PatientPrescriptionDto>>(Array.Empty<PatientPrescriptionDto>());
+        public Task<(int, IReadOnlyList<PatientRehabPlanDto>)> PlansAsync(TrustedPatientContext context, int page, int size, CancellationToken ct) => Task.FromResult<(int, IReadOnlyList<PatientRehabPlanDto>)>((1, new[] { new PatientRehabPlanDto { PlanId = 1 } }));
+        public Task<(int, IReadOnlyList<PatientPlanReportDto>)> ReportsAsync(TrustedPatientContext context, int page, int size, CancellationToken ct) => Task.FromResult<(int, IReadOnlyList<PatientPlanReportDto>)>((0, Array.Empty<PatientPlanReportDto>()));
     }
 
     private sealed class Devices : IIReTourPatientHistoryService, IIReGoPatientHistoryService

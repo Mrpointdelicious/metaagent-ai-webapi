@@ -13,31 +13,20 @@ namespace AI_WebApi.Tests;
 public sealed class PatientAccessContextTests
 {
     [Fact]
-    public async Task Patient_scope_fingerprint_preserves_the_pre_doctor_v2_material()
+    public async Task Scope_does_not_change_with_phone_profile_or_membership_of_another_account()
     {
         using var db = new PatientAccessTestDatabase();
-        var repository = new PatientAccessRepository(db);
-        var proof = Proof();
-        var anchor = (await repository.FindAnchorAsync("project_user_id", "7", default)).Single();
-        var source = await repository.LoadRelatedAsync(anchor, new[] { 7 }, default);
-        // Frozen patient-only v2 material: adding doctor support must not invalidate patient references.
-        var legacy = Newtonsoft.Json.JsonConvert.SerializeObject(new
-        {
-            version = "patient-access-v2", proof.Subject, anchor.Id, scope = "all_tenants", tenant = (int?)null,
-            owners = new[] { 7, 8 }, phone_binding = PatientIdentityProofCodec.PhoneBindingHash(anchor.Phone, Key),
-            roles = source.Roles.OrderBy(r => r.UserId).ThenBy(r => r.BusinessId).ThenBy(r => r.RoleId).ThenBy(r => r.Enable),
-            memberships = source.Memberships.OrderBy(t => t.UserId).ThenBy(t => t.BusinessId).ThenBy(t => t.Enable),
-            walk_namespace = false, walks = Array.Empty<ConfirmedWalkRecordBinding>(),
-            institution_names = source.Institutions.OrderBy(t => t.Key)
-        });
-        var expected = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(legacy))).ToLowerInvariant();
-        var result = await Resolver(db).ResolveAsync(Input(proof), "all_tenants", "r", default);
-        Assert.Equal(expected, result.Context!.Access!.ScopeFingerprint);
+        var resolver = Resolver(db);
+        var before = await resolver.ResolveAsync(Input(), null, "r", default);
+        db.Db.Updateable<PatientEntity>().SetColumns(account => account.Phone == "changed").Where(account => account.Id == 7).ExecuteCommand();
+        db.Db.Updateable<PatientTenantEntity>().SetColumns(link => link.Enable == -1).Where(link => link.UserId == 8).ExecuteCommand();
+        var after = await resolver.ResolveAsync(Input(Proof(phone:false)), null, "r", default);
+        Assert.Equal(before.Context!.Access!.ScopeFingerprint, after.Context!.Access!.ScopeFingerprint);
     }
     internal const string Key = "synthetic-patient-access-signing-key-20261029";
-    internal static PatientIdentityProof Proof(int owner=7,int? tenant=1,bool phone=true) => new()
+    internal static PatientIdentityProof Proof(int owner=7,int? tenant=1,bool phone=true,string actor="patient",bool allowAll=true) => new()
     {
-        Subject="synthetic-subject",AnchorUserId=owner,ActorRole="patient",CurrentBusinessId=tenant,AllowAllTenants=true,
+        Subject="synthetic-subject",AnchorUserId=owner,ActorRole=actor,CurrentBusinessId=tenant,AllowAllTenants=allowAll,
         PhoneBindingHash=phone ? PatientIdentityProofCodec.PhoneBindingHash("13800000001",Key) : null,
         IssuedAt=DateTimeOffset.UtcNow.ToUnixTimeSeconds(),ExpiresAt=DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeSeconds()
     };
@@ -56,24 +45,27 @@ public sealed class PatientAccessContextTests
         using var db=new PatientAccessTestDatabase();
         var resolved=await Resolver(db).ResolveAsync(Input(),null,"request",default);
         Assert.True(resolved.IsSuccess,resolved.ReasonCode);
-        Assert.Equal(new[]{7,8},resolved.Context!.Access!.UserIds);
+        Assert.Equal(7,resolved.Context!.Access!.AnchorUserId);
+        Assert.Equal(1,resolved.Context.Access.Describe().IncludedAccountCount);
         var source=await new IReGoDataRepository(db).LoadPatientDataAsync(resolved.Context);
-        Assert.Equal(new[]{11,12,13,15},source.Plans.Select(p=>p.Id).OrderBy(x=>x));
+        Assert.Equal(new[]{11,12,15},source.Plans.Select(p=>p.Id).OrderBy(x=>x));
+        Assert.Equal(new[]{21,22},source.Reports.Select(report=>report.Id).OrderBy(id=>id));
         Assert.Equal("A医院",source.Plans.Single(p=>p.Id==11).RecordTenant!.DisplayName);
-        Assert.Equal("B卫生服务中心",source.Plans.Single(p=>p.Id==13).RecordTenant!.DisplayName);
+        Assert.Equal("B卫生服务中心",source.Plans.Single(p=>p.Id==12).RecordTenant!.DisplayName);
         Assert.Equal("unknown",source.Plans.Single(p=>p.Id==15).RecordTenant!.AttributionStatus);
         Assert.Equal(2,resolved.Context.Access.Describe().IncludedTenantCount);
     }
 
     [Theory]
     [InlineData(1,new[]{11})]
-    [InlineData(2,new[]{12,13})]
+    [InlineData(2,new[]{12})]
     public async Task Current_tenant_filters_records_not_only_user_memberships(int tenant,int[] expected)
     {
         using var db=new PatientAccessTestDatabase();
         var result=await Resolver(db).ResolveAsync(Input(Proof(tenant:tenant)),"current_tenant","r",default);
         var source=await new IReGoDataRepository(db).LoadPatientDataAsync(result.Context!);
         Assert.Equal(expected,source.Plans.Select(p=>p.Id).OrderBy(x=>x));
+        Assert.Equal(expected.Single(),Assert.Single(source.Reports).PlanId);
     }
 
     [Fact]
@@ -84,19 +76,37 @@ public sealed class PatientAccessContextTests
         var repository=new PatientLayerRepository(db);
         var first=await repository.PlansAsync(result.Context!,1,2,default);
         var second=await repository.PlansAsync(result.Context!,2,2,default);
-        Assert.Equal(5,first.Count); Assert.Equal(5,second.Count);
+        Assert.Equal(4,first.Count); Assert.Equal(4,second.Count);
         Assert.Equal(new[]{16,15},first.Rows.Select(x=>x.PlanId));
-        Assert.Equal(new[]{13,12},second.Rows.Select(x=>x.PlanId));
+        Assert.Equal(new[]{12,11},second.Rows.Select(x=>x.PlanId));
     }
 
     [Fact]
-    public async Task Names_conflicting_with_same_phone_do_not_grant_cross_patient_access()
+    public async Task Report_directory_is_paged_by_owned_plan_and_record_tenant_not_device_or_phone()
+    {
+        using var db = new PatientAccessTestDatabase();
+        db.Db.Insertable(new[] { new RehabReportEntity { Id=27, PlanId=999 }, new RehabReportEntity { Id=28, PlanId=15 } }).OffIdentity().ExecuteCommand();
+        var resolver = Resolver(db);
+        var repository = new PatientLayerRepository(db);
+        var all = (await resolver.ResolveAsync(Input(), null, "r", default)).Context!;
+        var first = await repository.ReportsAsync(all, 1, 2, default);
+        var second = await repository.ReportsAsync(all, 2, 2, default);
+        Assert.Equal(4, first.Count);
+        Assert.Equal(new[]{11,12,15,16}, first.Rows.Concat(second.Rows).Select(row => row.PlanId).OrderBy(id => id));
+        var current = (await resolver.ResolveAsync(Input(), "current_tenant", "r", default)).Context!;
+        var restricted = await repository.ReportsAsync(current, 1, 20, default);
+        Assert.Equal(2, restricted.Count);
+        Assert.Equal(new[]{11,16}, restricted.Rows.Select(row => row.PlanId).OrderBy(id => id));
+        Assert.NotEqual(first.Rows.Concat(second.Rows).Single(row => row.PlanId == 11).RecordRef,
+            restricted.Rows.Single(row => row.PlanId == 11).RecordRef);
+    }
+
+    [Fact]
+    public async Task Staff_account_with_same_phone_and_stale_patient_role_is_not_a_patient_anchor()
     {
         using var db=new PatientAccessTestDatabase();
-        db.Db.Updateable<PatientEntity>().SetColumns(p=>p.Name=="其他患者").Where(p=>p.Id==8).ExecuteCommand();
-        var result=await Resolver(db).ResolveAsync(Input(),null,"r",default);
-        Assert.Equal(new[]{7},result.Context!.Access!.UserIds);
-        Assert.Contains("IDENTITY_LINK_AMBIGUOUS",result.Context.Access.Describe().Issues);
+        var result=await Resolver(db).ResolveAsync(Input(Proof(owner:8),value:"8"),null,"r",default);
+        Assert.Equal("PATIENT_GLOBAL_ACCOUNT_REQUIRED",result.ReasonCode);
     }
 
     [Fact]
@@ -127,19 +137,42 @@ public sealed class PatientAccessContextTests
         using var db=new PatientAccessTestDatabase();
         var resolver=Resolver(db);
         var noPhone=await resolver.ResolveAsync(Input(Proof(phone:false)),null,"r",default);
-        Assert.Equal(new[]{7},noPhone.Context!.Access!.UserIds);
+        Assert.Equal(1,noPhone.Context!.Access!.IncludedAccountCount);
+        Assert.Equal("PATIENT_SCOPE_FORBIDDEN",(await resolver.ResolveAsync(Input(Proof(allowAll:false)),null,"r",default)).ReasonCode);
         db.Db.Updateable<DbRoleUserEntity>().SetColumns(r=>r.RoleId==1).Where(r=>r.UserId==7).ExecuteCommand();
         Assert.Equal("PATIENT_SELF_ACCESS_REQUIRED",(await resolver.ResolveAsync(Input(),null,"r",default)).ReasonCode);
     }
 
-    [Fact]
-    public async Task Verified_historical_aliases_survive_disabled_login_but_arbitrary_same_phone_does_not()
+    [Theory]
+    [InlineData("patient")]
+    [InlineData("student")]
+    public async Task Student_only_global_account_reads_own_history_without_a_current_membership(string actor)
     {
         using var db=new PatientAccessTestDatabase();
-        db.Db.Updateable<PatientEntity>().SetColumns(p=>p.Status==9).Where(p=>p.Id==8).ExecuteCommand();
-        Assert.Equal(new[]{7},(await Resolver(db).ResolveAsync(Input(),null,"r",default)).Context!.Access!.UserIds);
-        var options=new PatientAccessOptions { IdentitySigningKey=Key,ConfirmedAccountGroups=new(){new[]{7,8}} };
-        Assert.Equal(new[]{7,8},(await Resolver(db,options).ResolveAsync(Input(),null,"r",default)).Context!.Access!.UserIds);
+        db.Db.Updateable<DbRoleUserEntity>().SetColumns(role=>role.RoleId==10).Where(role=>role.UserId==7).ExecuteCommand();
+        db.Db.Updateable<PatientTenantEntity>().SetColumns(link=>link.Enable==-1).Where(link=>link.UserId==7 && link.BusinessId==2).ExecuteCommand();
+        var resolver = Resolver(db);
+        var result = await resolver.ResolveAsync(Input(Proof(tenant:null,actor:actor)), null, "r", default);
+        Assert.True(result.IsSuccess, result.ReasonCode);
+        var data = await new IReGoDataRepository(db).LoadPatientDataAsync(result.Context!);
+        Assert.Equal("student", result.Context!.Access!.ActorRole);
+        Assert.Equal(new[]{21,22}, data.Reports.Select(report=>report.Id).OrderBy(id=>id));
+        Assert.True((await resolver.ResolveAsync(Input(Proof(tenant:1,actor:actor)), "current_tenant", "r", default)).IsSuccess);
+        Assert.Equal("CURRENT_TENANT_ACCESS_DENIED",(await resolver.ResolveAsync(Input(Proof(tenant:2,actor:actor)), "current_tenant", "r", default)).ReasonCode);
+        db.Db.Updateable<DbRoleUserEntity>().SetColumns(role=>role.Enable==-1).Where(role=>role.UserId==7).ExecuteCommand();
+        Assert.Equal("PATIENT_SELF_ACCESS_REQUIRED",(await resolver.ResolveAsync(Input(Proof(actor:actor)), null, "r", default)).ReasonCode);
+    }
+
+    [Fact]
+    public async Task Admin_or_inactive_roles_and_unconfirmed_account_state_do_not_authorize_self_access()
+    {
+        using var db = new PatientAccessTestDatabase();
+        var resolver = Resolver(db);
+        Assert.Equal("PATIENT_SELF_ACCESS_REQUIRED",(await resolver.ResolveAsync(Input(Proof(actor:"student")), null, "r", default)).ReasonCode);
+        db.Db.Updateable<DbRoleUserEntity>().SetColumns(role => role.RoleId == 3).Where(role => role.UserId == 7).ExecuteCommand();
+        Assert.Equal("PATIENT_SELF_ACCESS_REQUIRED",(await resolver.ResolveAsync(Input(), null, "r", default)).ReasonCode);
+        db.Db.Updateable<PatientEntity>().SetColumns(account => account.IsDeleted == null).Where(account => account.Id == 7).ExecuteCommand();
+        Assert.Equal("PATIENT_ACCOUNT_UNAVAILABLE",(await resolver.ResolveAsync(Input(), null, "r", default)).ReasonCode);
     }
 
     [Fact]
@@ -154,7 +187,7 @@ public sealed class PatientAccessContextTests
         accessor.Current=current.Access;
         Assert.False(refs.Matches(reference,1,7,11,21,"schema"));
         Assert.NotEqual(all.ContextKey,current.ContextKey);
-        db.Db.Updateable<PatientTenantEntity>().SetColumns(t=>t.Enable==-1).Where(t=>t.UserId==8).ExecuteCommand();
+        db.Db.Updateable<PatientTenantEntity>().SetColumns(t=>t.Enable==-1).Where(t=>t.UserId==7).ExecuteCommand();
         var changed=(await resolver.ResolveAsync(Input(),null,"r",default)).Context!;
         Assert.NotEqual(all.Access!.ScopeFingerprint,changed.Access!.ScopeFingerprint);
     }

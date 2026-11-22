@@ -34,7 +34,7 @@ public sealed class PatientLayerService : IPatientLayerService
 
     private async Task<PatientEntity?> PatientAsync(TrustedPatientContext context, CancellationToken ct)
     {
-        var patient = await _repository.PatientAsync(context.PatientId, ct);
+        var patient = await _repository.PatientAsync(context, ct);
         return patient?.IsDeleted == true ? null : patient;
     }
 
@@ -197,6 +197,7 @@ public sealed class PatientLayerService : IPatientLayerService
             return Envelope<PatientRehabDto>("get_patient_rehab", requestId, null,
                 ToolStatuses.Unavailable, new[] { "PROJECT_PATIENT_NOT_FOUND" }, "未找到该患者。");
         var plans = await _repository.PlansAsync(context, request.PageNumber, request.PageSize, ct);
+        var reports = await _repository.ReportsAsync(context, request.PageNumber, request.PageSize, ct);
         PatientRehabDeviceDto tour;
         PatientRehabDeviceDto go;
         try
@@ -219,8 +220,10 @@ public sealed class PatientLayerService : IPatientLayerService
         return Envelope("get_patient_rehab", requestId, new PatientRehabDto
         {
             PatientRef = context.PatientRef, PlanCount = plans.Count, Plans = plans.Rows,
-            PlanPage = Page(request.PageNumber, request.PageSize, plans.Count), Iretour = tour, Irego = go,
-            Limitations = new[] { "仅包含已记录的计划和设备训练；未接入的评估或其他康复内容不能视为不存在。", "历史训练结果不代表当前状态；计划完成标记不能替代训练结果。" }
+            PlanPage = Page(request.PageNumber, request.PageSize, plans.Count),
+            ReportCount = reports.Count, Reports = reports.Rows, ReportPage = Page(request.PageNumber, request.PageSize, reports.Count),
+            Iretour = tour, Irego = go,
+            Limitations = new[] { "仅包含可确认属于本账号的记录；未映射的步道和微信记录不纳入，不代表没有这些记录。", "历史训练结果不代表当前状态；计划完成标记不能替代训练结果。" }
         }, failed ? ToolStatuses.Partial : ToolStatuses.Success);
     }
 

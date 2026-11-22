@@ -14,22 +14,23 @@ public sealed class PatientLayerRepository : IPatientLayerRepository
     public PatientLayerRepository(IUnitOfWorkManage unitOfWork) => _db = unitOfWork.GetDbClient();
     private SqlSugarScopeProvider Project => _db.GetConnectionScope("project_main");
 
-    public async Task<PatientEntity?> PatientAsync(int patientId, CancellationToken cancellationToken)
+    public async Task<PatientEntity?> PatientAsync(TrustedPatientContext context, CancellationToken ct)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return await Project.Queryable<PatientEntity>().Where(x => x.Id == patientId).FirstAsync();
+        var patientId = context.RequireAccess().AnchorUserId;
+        return await Project.Queryable<PatientEntity>().Where(patient => patient.Id == patientId &&
+            patient.BusinessId == 0 && patient.Status == 1 && patient.IsDeleted == false).FirstAsync(ct);
     }
 
-    private static SugarParameter[] Parameters(TrustedPatientContext context, int page = 1, int size = 5) => new[]
+    private static SugarParameter[] Parameters(TrustedPatientContext context, int page = 1, int size = 5)
     {
-        new SugarParameter("@patient", context.PatientId),
-        new SugarParameter("@tenant", context.Access?.DataScope == "current_tenant" ? context.Access.CurrentBusinessId : null),
-        new SugarParameter("@tenant_text", context.Access?.CurrentBusinessId?.ToString(CultureInfo.InvariantCulture)),
-        new SugarParameter("@offset", (page - 1) * size), new SugarParameter("@size", size)
-    };
-
-    public async Task<(int Count, IReadOnlyList<PatientMedicalRow> Rows)> MedicalAsync(int patientId, int page, int size, CancellationToken ct)
-        => await MedicalAsync(new TrustedPatientContext { PatientId = patientId }, page, size, ct);
+        var access = context.RequireAccess();
+        var tenant = access.DataScope == "current_tenant" ? access.CurrentBusinessId : null;
+        return new[] {
+            new SugarParameter("@patient", access.AnchorUserId), new SugarParameter("@tenant", tenant),
+            new SugarParameter("@tenant_text", tenant?.ToString(CultureInfo.InvariantCulture)),
+            new SugarParameter("@offset", (page - 1) * size), new SugarParameter("@size", size)
+        };
+    }
 
     public async Task<(int Count, IReadOnlyList<PatientMedicalRow> Rows)> MedicalAsync(TrustedPatientContext context, int page, int size, CancellationToken ct)
     {
@@ -46,9 +47,6 @@ public sealed class PatientLayerRepository : IPatientLayerRepository
         }
         return (count, rows);
     }
-
-    public async Task<(int Count, IReadOnlyList<PatientConsultationRecordDto> Rows)> ConsultationsAsync(int patientId, int page, int size, CancellationToken ct)
-        => await ConsultationsAsync(new TrustedPatientContext { PatientId = patientId }, page, size, ct);
 
     public async Task<(int Count, IReadOnlyList<PatientConsultationRecordDto> Rows)> ConsultationsAsync(TrustedPatientContext context, int page, int size, CancellationToken ct)
     {
@@ -71,9 +69,6 @@ public sealed class PatientLayerRepository : IPatientLayerRepository
         }).ToArray());
     }
 
-    public async Task<IReadOnlyList<PatientPrescriptionDto>> PrescriptionsAsync(int patientId, int medicalId, CancellationToken ct)
-        => await PrescriptionsAsync(new TrustedPatientContext { PatientId = patientId }, medicalId, ct);
-
     public async Task<IReadOnlyList<PatientPrescriptionDto>> PrescriptionsAsync(TrustedPatientContext context, int medicalId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -87,17 +82,13 @@ public sealed class PatientLayerRepository : IPatientLayerRepository
             Parameters(context).Append(new SugarParameter("@medical", medicalId)).ToArray());
     }
 
-    public async Task<(int Count, IReadOnlyList<PatientRehabPlanDto> Rows)> PlansAsync(int patientId, int page, int size, CancellationToken ct)
-        => await PlansAsync(new TrustedPatientContext { PatientId = patientId }, page, size, ct);
-
     public async Task<(int Count, IReadOnlyList<PatientRehabPlanDto> Rows)> PlansAsync(
-        AI_WebApi.Model.Domain.IReGo.TrustedPatientContext context, int page, int size, CancellationToken ct)
+        TrustedPatientContext context, int page, int size, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        var access = context.Access;
-        var owners = access?.UserIds ?? new[] { context.PatientId };
-        var query = Project.Queryable<RehabPlanEntity>().Where(p => owners.Contains(p.UserId ?? 0))
-            .WhereIF(access?.DataScope == "current_tenant", p => p.BusinessId == access!.CurrentBusinessId);
+        var access = context.RequireAccess();
+        var query = Project.Queryable<RehabPlanEntity>().Where(p => p.UserId == access.AnchorUserId)
+            .WhereIF(access.DataScope == "current_tenant", p => p.BusinessId == access.CurrentBusinessId);
         var count = await query.Clone().CountAsync();
         var rows = await query.OrderBy(p => SqlFunc.IsNull(p.BookingTime, p.CreateTime), OrderByType.Desc)
             .OrderBy(p => p.Id, OrderByType.Desc).Skip((page - 1) * size).Take(size).ToListAsync(ct);
@@ -111,6 +102,27 @@ public sealed class PatientLayerRepository : IPatientLayerRepository
     }
 
     private static DateTime? RealDate(DateTime? value) => value?.Year > 1900 ? value : null;
+
+    public async Task<(int Count, IReadOnlyList<PatientPlanReportDto> Rows)> ReportsAsync(
+        TrustedPatientContext context, int page, int size, CancellationToken ct)
+    {
+        var access = context.RequireAccess();
+        var query = Project.Queryable<RehabReportEntity>()
+            .InnerJoin<RehabPlanEntity>((report, plan) => report.PlanId == plan.Id)
+            .Where((report, plan) => plan.UserId == access.AnchorUserId)
+            .WhereIF(access.DataScope == "current_tenant", (report, plan) => plan.BusinessId == access.CurrentBusinessId);
+        var count = await query.Clone().CountAsync(ct);
+        var rows = await query.OrderBy((report, plan) => report.CreateTime, OrderByType.Desc)
+            .OrderBy((report, plan) => report.Id, OrderByType.Desc)
+            .Select((report, plan) => new { ReportId = report.Id, PlanId = plan.Id, plan.BusinessId, report.CreateTime })
+            .Skip((page - 1) * size).Take(size).ToListAsync(ct);
+        return (count, rows.Select(row => new PatientPlanReportDto
+        {
+            RecordRef = access.Reference("report", $"{access.ScopeFingerprint}|project.dbreport:{row.ReportId}"),
+            PlanId = row.PlanId, RecordedAt = RealDate(row.CreateTime),
+            RecordTenant = access.Observe($"project.dbreport:{row.ReportId}", row.BusinessId, "project.dbrehaplan.BusinessId", access.AnchorUserId)
+        }).ToArray());
+    }
 
     public sealed class ConsultationRow
     {

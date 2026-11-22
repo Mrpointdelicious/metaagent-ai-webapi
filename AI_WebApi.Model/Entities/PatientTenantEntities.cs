@@ -2,7 +2,7 @@ using SqlSugar;
 
 namespace AI_WebApi.Model.Entities;
 
-[SugarTable("dbbuniessuser")]
+[SugarTable("dbusertenant")]
 public sealed class PatientTenantEntity
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)] public int Id { get; set; }

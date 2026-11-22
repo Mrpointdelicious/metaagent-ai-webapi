@@ -25,7 +25,7 @@ public sealed class PatientContractV2Tests
     [Fact]
     public void Patient_reference_is_shared_by_identity_and_IReGo_regardless_of_current_profile_institution()
     {
-        var access=new PatientAccessContext(Key){ScopeFingerprint="confirmed-scope",UserIds=new[]{7,8}};
+        var access=new PatientAccessContext(Key){ScopeFingerprint="confirmed-scope",AnchorUserId=7};
         var context=new TrustedPatientContext{PatientId=7,Access=access};
         var provider=new IReGoSessionRefProvider(Options.Create(new IReGoToolOptions{SessionRefSigningKey=Key}),
             new PatientAccessContextAccessor{Current=access});
@@ -36,7 +36,7 @@ public sealed class PatientContractV2Tests
     [Fact]
     public async Task Cached_patient_context_preserves_partial_coverage_and_record_institution()
     {
-        var access=new PatientAccessContext(Key){ScopeFingerprint="scope",UserIds=new[]{7}};
+        var access=new PatientAccessContext(Key){ScopeFingerprint="scope",AnchorUserId=7};
         var context=new TrustedPatientContext{PatientId=7,Access=access};
         var data=new MultisourcePatientContextDto{DataDomains=new PatientDataDomainsDto{Irego=new IReGoContextDomainDto
         {RecentSessions=new[]{new IReGoRecentSessionDto{SessionRef="record",RecordTenant=access.Tenant(null,"record")}}}}};
@@ -96,7 +96,7 @@ public sealed class PatientContractV2Tests
     [Fact]
     public void Institution_segments_preserve_A_B_A_order_and_unknown_records()
     {
-        var access=new PatientAccessContext(Key){UserIds=new[]{7},Institutions=new Dictionary<int,string?>{{1,"A医院"},{2,"B卫生中心"}}};
+        var access=new PatientAccessContext(Key){AnchorUserId=7,Institutions=new Dictionary<int,string?>{{1,"A医院"},{2,"B卫生中心"}}};
         var records=new IReGoPatientHistoryDto{Items=new[]
         {
             Item("a1",1,access.Tenant(1,"record")),Item("b",2,access.Tenant(2,"record")),
@@ -150,7 +150,7 @@ public sealed class PatientContractV2Tests
         var controller=new PatientReportArtifactsV2Controller(resolver,store,Options.Create(options))
         {ControllerContext=new ControllerContext{HttpContext=new DefaultHttpContext()}};
         Assert.IsType<FileContentResult>(await controller.Content(reference,grant,default));
-        db.Db.Updateable<PatientTenantEntity>().SetColumns(t=>t.Enable==-1).Where(t=>t.UserId==8).ExecuteCommand();
+        db.Db.Updateable<PatientTenantEntity>().SetColumns(t=>t.Enable==-1).Where(t=>t.UserId==7).ExecuteCommand();
         var changed=Assert.IsType<StatusCodeResult>(await controller.Content(reference,grant,default));
         Assert.Equal(403,changed.StatusCode);
         Assert.IsType<UnauthorizedResult>(await controller.Content(reference,grant+"x",default));

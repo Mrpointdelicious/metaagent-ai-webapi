@@ -2,11 +2,6 @@ using SqlSugar;
 
 namespace AI_WebApi.Model.Entities;
 
-/// <summary>
-/// Physical IReTour source entities in the merged project schema. The optional
-/// governance binding tables are read only when they exist; v1 falls back to
-/// direct dbuser.Id = dbwalk.userId as the verified binding path.
-/// </summary>
 [SugarTable("dbwalk")]
 public sealed class IReTourWalkEntity
 {
@@ -35,6 +30,8 @@ public sealed class IReTourWalkEntity
 
     [SugarColumn(ColumnName = "userId")]
     public int UserId { get; set; }
+
+    public int? BusinessId { get; set; }
 
     [SugarColumn(ColumnName = "details")]
     public string? Details { get; set; }

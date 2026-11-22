@@ -211,7 +211,7 @@
   </style>
 </head>
 <body><header><div class="shell"><div class="brand"><span class="brand-mark">IR</span><span>患者康复工具 · 2.0.0</span></div></div></header><main class="shell">
-<section class="hero"><div><div class="eyebrow">Patient rehab tools</div><h1>本人康复记录，保留每次所属机构</h1><p class="lead">患者默认查看全部已确认账号的康复记录，也可选择当前机构。接口沿用原工具地址，统一替换为契约 2.0.0。</p><div class="hero-actions"><a class="button" href="/api/ai/patients/tools/openapi.json">查看当前 OpenAPI</a><a class="button secondary" href="trust-and-release-gates.html">身份与范围校验</a></div></div></section>
+<section class="hero"><div><div class="eyebrow">Patient rehab tools</div><h1>本人康复记录，保留每次所属机构</h1><p class="lead">患者和学生默认跨机构查看同一个全局账号的康复记录，也可选择当前机构。接口沿用原工具地址，统一替换为契约 2.0.0。</p><div class="hero-actions"><a class="button" href="/api/ai/patients/tools/openapi.json">查看当前 OpenAPI</a><a class="button secondary" href="trust-and-release-gates.html">身份与范围校验</a></div></div></section>
 <section><h2>统一请求</h2><p>POST /api/ai/patients/tools/{tool_name}。服务 Bearer、登录主体和短期签名凭证由已认证业务后端绑定，模型不生成身份参数。</p><pre class="codebox">{
   &quot;system_context&quot;: {
     &quot;user&quot;: &quot;authenticated-subject&quot;,
@@ -222,9 +222,9 @@
   },
   &quot;data_scope&quot;: &quot;all_tenants&quot;
 }</pre><p>patient_identity.type 接受 project_user_id 或 login_name，value 保留原字符串及前导零。user 表示登录主体；只有数字 user 的旧格式不再接受。手机号不作为公开查询主键。</p></section>
-<section><h2>两种范围</h2><table><thead><tr><th>data_scope</th><th>行为</th></tr></thead><tbody><tr><td>all_tenants（默认）</td><td>查询本人已确认账号的康复记录。机构未知时明确标注，不猜测归属。</td></tr><tr><td>current_tenant</td><td>验证当前机构资格，再按每条记录所属机构过滤。历史机构依据不足的记录不纳入。</td></tr></tbody></table><p>query_scope 说明实际范围及覆盖不足；record_tenant 返回医院/卫生中心名称、归属状态、依据和名称来源。tenant_segments 按记录时间保留 A→B→A 的来源段，不推断连续治疗期。</p></section>
+<section><h2>两种范围</h2><table><thead><tr><th>data_scope</th><th>行为</th></tr></thead><tbody><tr><td>all_tenants（默认）</td><td>查询本人全局账号的记录，不按手机号合并。机构未知时明确标注，不猜测归属。</td></tr><tr><td>current_tenant</td><td>验证当前机构资格，再按每条记录所属机构过滤；医生代查还须有有效委托。历史机构依据不足的记录不纳入。</td></tr></tbody></table><p>query_scope 说明实际范围及覆盖不足；record_tenant 返回医院/卫生中心名称、归属状态、依据和名称来源。tenant_segments 按记录时间保留 A→B→A 的来源段，不推断连续治疗期。</p></section>
 <section><h2>发现、分析和报告</h2><ol><li>调用 resolve_patient_identity 和 GET catalog 确认身份范围及可用工具。各家族共用匿名 patient_ref。</li><li>通过 context/history 发现记录，只使用当前范围返回的 session_ref 或 assessment_ref。切换范围后重新发现。</li><li>IReGo 单次分析通过 selector=latest_usable/session_ref；纵向分析使用 selection_mode=latest_count/recent_ordinal_range/date_range，最多 10 个报告位置。</li><li>生成图片前，先取得同范围、同选择条件的分析。IReGo 使用 detail_level=standard、quality_detail=summary；将 source_snapshot 原样绑定到报告请求的 expected_source_snapshot。</li><li>直接展示报告的 display_markdown。image_url 的 access_grant 查询参数必须保留，最长有效 5 分钟且不超过身份凭证有效期。过期后重新调用工具取得新地址。</li></ol><p>旧裸 patientId 查询、旧 robot/project 身份映射以及旧公开图片下载入口已移除，不发布第二套 /v2/tools 路由。</p></section>
-<section><h2>规范响应</h2><p>根 contract_version 为 2.0.0。单次 IReGo 统一使用 report_blocks、overview.report_block_count；能力评价使用 basic_evaluation。报告和图表保留实际记录所属机构。</p><p>success 表示可用结果，partial 同时说明覆盖或质量限制，unavailable 表示当前无法提供该结果。未接入或无法核实归属的来源不等同于患者没有记录。</p><p>步道历史数据没有可靠机构字段，默认不按相同数字猜测患者。仅纳入业务核实的来源/记录绑定；当前机构视图还要求记录级机构依据。</p></section>
+<section><h2>规范响应</h2><p>根 contract_version 为 2.0.0。单次 IReGo 统一使用 report_blocks、overview.report_block_count；能力评价使用 basic_evaluation。报告和图表保留实际记录所属机构。</p><p>success 表示可用结果，partial 同时说明覆盖或质量限制，unavailable 表示当前无法提供该结果。未接入或无法核实归属的来源不等同于患者没有记录。</p><p>步道仅纳入逐条确认患者映射的记录，当前机构视图还须确认记录机构；未映射的步道和微信数据暂不展示。</p></section>
 <section><h2>部署与验证</h2><p>配置至少 32 字节的 PatientAccess__IdentitySigningKey，并由业务登录后端签发最长 900 秒的 patient_identity_v2 凭证。缺少配置返回 503，无效凭证返回 401。业务签名密钥不进入模型或普通日志。</p><p>本版按现有 project 和 dbbuniessuser 读取，不执行新库迁移。当前完成构建与隔离单元验证；按要求未执行 smoke test。</p></section></main>
 </body>
 </html>

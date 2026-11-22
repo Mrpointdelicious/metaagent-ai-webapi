@@ -8,9 +8,6 @@ public sealed class PatientAccessOptions
     public string DoctorDelegationSigningKey { get; set; } = string.Empty;
     public string DoctorDelegationValidationUrl { get; set; } = string.Empty;
     public string DoctorDelegationServiceToken { get; set; } = string.Empty;
-    public List<int[]> ConfirmedAccountGroups { get; set; } = new();
-    // Opt in only after the source FK namespace has been verified by the business.
-    public bool WalkUserIdsUseProjectNamespace { get; set; }
     public List<ConfirmedWalkRecordBinding> ConfirmedWalkRecords { get; set; } = new();
 }
 

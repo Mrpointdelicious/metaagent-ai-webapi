@@ -9,7 +9,7 @@ public sealed class PatientLayerSchemaScopeTests
     private static TrustedPatientContext Context(string scope = "current_tenant") => new()
     {
         PatientId = 7, Access = new PatientAccessContext(PatientAccessContextTests.Key)
-        { UserIds = new[] { 7, 8 }, CurrentBusinessId = 1, DataScope = scope, ScopeFingerprint = "scope" }
+        { AnchorUserId = 7, CurrentBusinessId = 1, DataScope = scope, ScopeFingerprint = "scope" }
     };
 
     private static void Prepare(PatientAccessTestDatabase db)
@@ -44,6 +44,8 @@ public sealed class PatientLayerSchemaScopeTests
             Assert.Empty(await repository.PrescriptionsAsync(Context(), id, default));
         var all = await repository.MedicalAsync(Context("all_tenants"), 1, 20, default);
         Assert.Equal(2, all.Count); Assert.Equal(new[] { 2, 1 }, all.Rows.Select(r => r.RecordId));
+        Assert.Equal(11, Assert.Single(await repository.PrescriptionsAsync(Context("all_tenants"), 2, default)).PrescriptionId);
+        Assert.Empty(await repository.PrescriptionsAsync(Context("all_tenants"), 4, default));
     }
 
     [Fact]

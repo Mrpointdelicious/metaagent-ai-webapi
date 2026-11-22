@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using AI_WebApi.IServices.AITools;
 using AI_WebApi.Model.AITools;
 using AI_WebApi.Model.Domain.IReGo;
@@ -49,82 +48,48 @@ public sealed class PatientAccessContextResolver : IPatientAccessContextResolver
         if (anchors.Count != 1) return Deny(identity.Type == "login_name" && anchors.Count > 1 ? "LOGIN_NAME_NOT_UNIQUE" : "PATIENT_IDENTITY_NOT_FOUND", 404);
         var anchor = anchors[0];
         if (anchor.Id != proof.AnchorUserId) return Deny("PATIENT_IDENTITY_MISMATCH", 403);
-        if (anchor.Status != 1 || anchor.IsDeleted == true) return Deny("PATIENT_ACCOUNT_UNAVAILABLE", 403);
-        var explicitIds = new HashSet<int> { anchor.Id };
-        for (var pass = 0; !doctor && pass < _options.ConfirmedAccountGroups.Count; pass++)
-            foreach (var group in _options.ConfirmedAccountGroups.Where(g => g.Any(explicitIds.Contains))) explicitIds.UnionWith(group.Where(id => id > 0));
-        if (explicitIds.Count > 100) return Deny("PATIENT_IDENTITY_READ_LIMIT", 503);
-        var source = await _repository.LoadRelatedAsync(anchor, explicitIds.ToArray(), ct);
-        bool PatientRole(int id) => source.Roles.Any(r => r.UserId == id && r.RoleId == 0 && r.Enable == 0);
-        if (!PatientRole(anchor.Id)) return Deny("PATIENT_SELF_ACCESS_REQUIRED", 403);
+        if (anchor.Status != 1 || anchor.IsDeleted != false) return Deny("PATIENT_ACCOUNT_UNAVAILABLE", 403);
+        if (anchor.BusinessId != 0) return Deny("PATIENT_GLOBAL_ACCOUNT_REQUIRED", 403);
+        var source = await _repository.LoadAccessAsync(anchor.Id, ct);
+        var selfRoles = source.Roles.Where(role => role.UserId == anchor.Id && role.Enable == 0 &&
+            role.RoleId is DbRoleUserEntity.PatientRoleId or DbRoleUserEntity.StudentRoleId);
+        if (!selfRoles.Any()) return Deny("PATIENT_SELF_ACCESS_REQUIRED", 403);
         if (scope == "current_tenant" && (proof.CurrentBusinessId is not > 0 ||
             !source.Memberships.Any(t => t.UserId == anchor.Id && t.BusinessId == proof.CurrentBusinessId && t.Enable == 0) ||
-            !source.Roles.Any(r => r.UserId == anchor.Id && r.BusinessId == proof.CurrentBusinessId && r.RoleId == 0 && r.Enable == 0)))
+            !selfRoles.Any(role => role.BusinessId == proof.CurrentBusinessId)))
             return Deny("CURRENT_TENANT_ACCESS_DENIED", 403);
 
-        var ids = new HashSet<int> { anchor.Id };
-        var issues = new HashSet<string>();
-        var phoneProof = !string.IsNullOrWhiteSpace(anchor.Phone) && !string.IsNullOrEmpty(proof.PhoneBindingHash) &&
-            CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(proof.PhoneBindingHash),
-                Encoding.UTF8.GetBytes(PatientIdentityProofCodec.PhoneBindingHash(anchor.Phone, _options.IdentitySigningKey)));
-        foreach (var candidate in source.Accounts.Where(u => !doctor && u.Id != anchor.Id))
-        {
-            if (explicitIds.Contains(candidate.Id)) { ids.Add(candidate.Id); continue; }
-            if (!phoneProof) { issues.Add("PHONE_ASSOCIATION_UNVERIFIED"); continue; }
-            if (candidate.Status != 1 || candidate.IsDeleted == true || !PatientRole(candidate.Id))
-            { issues.Add("HISTORICAL_ACCOUNT_BINDING_UNVERIFIED"); continue; }
-            if (candidate.Phone?.Trim() != anchor.Phone?.Trim() || !Compatible(anchor, candidate))
-            { issues.Add("IDENTITY_LINK_AMBIGUOUS"); continue; }
-            ids.Add(candidate.Id);
-        }
-        var userIds = ids.OrderBy(id => id).ToArray();
-        var walks = _options.ConfirmedWalkRecords.Where(w => ids.Contains(w.ProjectUserId) && w.WalkId > 0)
-            .GroupBy(w => w.WalkId).Where(g => g.Select(w => (w.ProjectUserId, w.BusinessId)).Distinct().Count() == 1)
-            .ToDictionary(g => g.Key, g => g.First());
+        var scopedRoles = selfRoles.Where(role => scope == "all_tenants" || role.BusinessId == proof.CurrentBusinessId);
+        if (proof.ActorRole == "student" && !scopedRoles.Any(role => role.RoleId == DbRoleUserEntity.StudentRoleId))
+            return Deny("PATIENT_SELF_ACCESS_REQUIRED", 403);
+        var actorRole = proof.ActorRole == "patient" && !scopedRoles.Any(role => role.RoleId == DbRoleUserEntity.PatientRoleId)
+            ? "student" : proof.ActorRole;
+        var walks = _options.ConfirmedWalkRecords.Where(binding => binding.WalkId > 0)
+            .GroupBy(binding => binding.WalkId)
+            .Where(group => group.All(binding => binding.ProjectUserId == anchor.Id && binding.BusinessId == group.First().BusinessId))
+            .Select(group => group.First())
+            .Where(binding => scope == "all_tenants" || binding.BusinessId == proof.CurrentBusinessId)
+            .ToDictionary(binding => binding.WalkId);
         var scopeMaterial = JObject.FromObject(new
         {
-            version = "patient-access-v2", proof.Subject, anchor.Id, scope,
+            version = "global-patient-account-v1", proof.Subject, anchor.Id, actorRole, scope,
             tenant = scope == "current_tenant" ? proof.CurrentBusinessId : null,
-            owners = userIds, phone_binding = PatientIdentityProofCodec.PhoneBindingHash(anchor.Phone, _options.IdentitySigningKey),
             roles = source.Roles.OrderBy(r => r.UserId).ThenBy(r => r.BusinessId).ThenBy(r => r.RoleId).ThenBy(r => r.Enable),
             memberships = source.Memberships.OrderBy(t => t.UserId).ThenBy(t => t.BusinessId).ThenBy(t => t.Enable),
-            walk_namespace = _options.WalkUserIdsUseProjectNamespace, walks = walks.Values.OrderBy(w => w.WalkId),
+            walks = walks.Values.OrderBy(w => w.WalkId),
             institution_names = source.Institutions.OrderBy(t => t.Key)
         });
         if (doctor) scopeMaterial["DoctorDelegation"] = JObject.FromObject(proof.DoctorDelegation!);
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(scopeMaterial.ToString(Formatting.None)))).ToLowerInvariant();
         var access = new PatientAccessContext(_options.IdentitySigningKey)
         {
-            AnchorUserId = anchor.Id, Subject = proof.Subject, CurrentBusinessId = proof.CurrentBusinessId, DataScope = scope,
-            UserIds = userIds, ScopeFingerprint = fingerprint, Institutions = source.Institutions,
-            WalkUserIdsUseProjectNamespace = _options.WalkUserIdsUseProjectNamespace, WalkRecords = walks
+            AnchorUserId = anchor.Id, Subject = proof.Subject, ActorRole = actorRole, CurrentBusinessId = proof.CurrentBusinessId, DataScope = scope,
+            ScopeFingerprint = fingerprint, Institutions = source.Institutions, WalkRecords = walks
         };
-        foreach (var issue in issues) access.AddIssue(issue);
         return new(new TrustedPatientContext
         {
             PatientId = anchor.Id, SubjectRef = access.Reference("subject", proof.Subject),
             ConversationId = input.ConversationId ?? requestId, TraceId = requestId, Access = access
         });
-    }
-
-    private static bool Compatible(PatientEntity a, PatientEntity b)
-    {
-        static string Normalize(string? s) => (s ?? "").Trim().Normalize(NormalizationForm.FormKC);
-        var nameA = Normalize(a.Name); var nameB = Normalize(b.Name);
-        if (Regex.IsMatch(nameA + "|" + nameB, "测试|演示|test|demo", RegexOptions.IgnoreCase)) return false;
-        var identityA = Normalize(a.IdentityId); var identityB = Normalize(b.IdentityId);
-        if (identityA.Length > 0 && identityB.Length > 0 && identityA != identityB) return false;
-        if (!(identityA.Length > 0 && identityA == identityB) && (nameA.Length == 0 || nameA != nameB)) return false;
-        try
-        {
-            var profileA = JObject.Parse(a.UserDetails ?? "{}"); var profileB = JObject.Parse(b.UserDetails ?? "{}");
-            foreach (var path in new[] { "patientInfo.birthDate", "patientInfo.birthday", "patientInfo.gender", "patientInfo.sex" })
-            {
-                var x = Normalize(profileA.SelectToken(path)?.ToString()); var y = Normalize(profileB.SelectToken(path)?.ToString());
-                if (x.Length > 0 && y.Length > 0 && x != y) return false;
-            }
-        }
-        catch (JsonException) { return false; }
-        return true;
     }
 }

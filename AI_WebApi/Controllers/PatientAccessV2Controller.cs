@@ -16,7 +16,7 @@ public sealed class PatientAccessV2Controller : ControllerBase
     {
         var context = (TrustedPatientContext)HttpContext.Items[PatientV2ScopeFilter.ContextItemKey]!;
         return Ok(ToolResponseDto<PatientAccessResolutionDto>.Create("resolve_patient_identity", HttpContext.TraceIdentifier,
-            ToolStatuses.Success, new PatientAccessResolutionDto { PatientRef = context.PatientRef, IncludedAccountCount = context.Access!.UserIds.Length },
+            ToolStatuses.Success, new PatientAccessResolutionDto { PatientRef = context.PatientRef, IncludedAccountCount = context.Access!.IncludedAccountCount },
             null, new ToolMetaDto(), contractVersion: "2.0.0"));
     }
 }

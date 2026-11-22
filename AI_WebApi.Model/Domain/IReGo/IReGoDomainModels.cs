@@ -11,6 +11,11 @@ public sealed class TrustedPatientContext
     public string TraceId { get; init; } = string.Empty;
     public PatientAccessContext? Access { get; init; }
 
+    public PatientAccessContext RequireAccess() =>
+        Access != null && Access.AllowsOwner(PatientId) &&
+        (Access.DataScope == "all_tenants" || Access.DataScope == "current_tenant" && Access.CurrentBusinessId > 0)
+            ? Access : throw new InvalidOperationException("PATIENT_ACCESS_CONTEXT_REQUIRED");
+
     public string PatientRef => Access?.Reference("patient_scope_v2", Access.ScopeFingerprint) ?? $"patient:{PatientId}";
     public string ContextKey => $"{SubjectRef}|{PatientRef}";
 }

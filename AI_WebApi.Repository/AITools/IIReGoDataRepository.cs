@@ -4,10 +4,5 @@ namespace AI_WebApi.Repository.AITools;
 
 public interface IIReGoDataRepository
 {
-    Task<IReGoRawDataSet> LoadPatientDataAsync(
-        int patientId,
-        CancellationToken cancellationToken = default);
-
-    Task<IReGoRawDataSet> LoadPatientDataAsync(TrustedPatientContext context, CancellationToken cancellationToken = default) =>
-        LoadPatientDataAsync(context.PatientId, cancellationToken);
+    Task<IReGoRawDataSet> LoadPatientDataAsync(TrustedPatientContext context, CancellationToken cancellationToken = default);
 }

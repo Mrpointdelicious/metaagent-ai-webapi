@@ -32,8 +32,8 @@ internal sealed class PatientAccessTestDatabase : IUnitOfWorkManage, IDisposable
             typeof(IReTourRawReportEntity), typeof(IReTourCognitiveReportEntity), typeof(IReTourPatientBindingEntity));
         Db.Insertable(new[]
         {
-            Account(7, 1, "000007"), Account(8, 2, "000008"),
-            new PatientEntity { Id=9, BusinessId=1, LoginName="000009", Name="患者乙", Phone="13800000002", Status=1, IsDeleted=false, UserDetails="{}" }
+            Account(7, 0, "000007"), Account(8, 2, "000008"),
+            new PatientEntity { Id=9, BusinessId=0, LoginName="000009", Name="患者乙", Phone="13800000002", Status=1, IsDeleted=false, UserDetails="{}" }
         }).OffIdentity().ExecuteCommand();
         Db.Insertable(new[]
         {
@@ -58,8 +58,12 @@ internal sealed class PatientAccessTestDatabase : IUnitOfWorkManage, IDisposable
         Db.Insertable(new RehabTemplateEntity { Id=4,ModelId=0 }).OffIdentity().ExecuteCommand();
         Db.Insertable(new[] { Plan(11,7,1,1,1), Plan(12,7,2,2,2), Plan(13,8,2,2,3),
             Plan(14,9,1,1,4), Plan(15,7,0,1,5), Plan(16,7,1,3,6) }).OffIdentity().ExecuteCommand();
-        Db.Insertable(new RehabReportEntity { Id=26,PlanId=16,CreateTime=new DateTime(2026,10,6,10,0,0),
-            ReportDetails="{\"Title\":[{\"item\":1}],\"TableTitle\":\"合成量表\",\"Score\":23}" }).OffIdentity().ExecuteCommand();
+        Db.Insertable(new[] {
+            new RehabReportEntity { Id=21,PlanId=11 }, new RehabReportEntity { Id=22,PlanId=12 },
+            new RehabReportEntity { Id=23,PlanId=13 }, new RehabReportEntity { Id=24,PlanId=14 },
+            new RehabReportEntity { Id=26,PlanId=16,CreateTime=new DateTime(2026,10,6,10,0,0),
+                ReportDetails="{\"Title\":[{\"item\":1}],\"TableTitle\":\"合成量表\",\"Score\":23}" }
+        }).OffIdentity().ExecuteCommand();
     }
     private static PatientEntity Account(int id,int business,string login) => new()
     { Id=id,BusinessId=business,LoginName=login,Name="患者甲",Phone="13800000001",Status=1,IsDeleted=false,UserDetails="{}" };

@@ -10,12 +10,12 @@ public sealed class PatientAccessContext
 {
     public int AnchorUserId { get; init; }
     public string Subject { get; init; } = string.Empty;
+    public string ActorRole { get; init; } = "patient";
     public int? CurrentBusinessId { get; init; }
     public string DataScope { get; init; } = "all_tenants";
-    public int[] UserIds { get; init; } = Array.Empty<int>();
+    public int IncludedAccountCount => AnchorUserId > 0 ? 1 : 0;
     public string ScopeFingerprint { get; init; } = string.Empty;
     public IReadOnlyDictionary<int, string?> Institutions { get; init; } = new Dictionary<int, string?>();
-    public bool WalkUserIdsUseProjectNamespace { get; init; }
     public IReadOnlyDictionary<int, ConfirmedWalkRecordBinding> WalkRecords { get; init; } = new Dictionary<int, ConfirmedWalkRecordBinding>();
     private readonly ConcurrentDictionary<string, byte> _issues = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, RecordTenantDto> _records = new(StringComparer.Ordinal);
@@ -25,7 +25,7 @@ public sealed class PatientAccessContext
     private readonly byte[] _key;
 
     public PatientAccessContext(string referenceKey) => _key = Encoding.UTF8.GetBytes(referenceKey);
-    public bool AllowsOwner(int? id) => id.HasValue && UserIds.Contains(id.Value);
+    public bool AllowsOwner(int? id) => AnchorUserId > 0 && id == AnchorUserId;
     public bool AllowsTenant(int? id) => DataScope == "all_tenants" || id > 0 && id == CurrentBusinessId;
     public void AddIssue(string issue) => _issues.TryAdd(issue, 0);
     public string Reference(string kind, string value) => kind + "_" + Convert.ToHexString(
@@ -66,7 +66,7 @@ public sealed class PatientAccessContext
     {
         Requested = DataScope, Effective = DataScope,
         CurrentTenantRef = CurrentBusinessId > 0 ? Tenant(CurrentBusinessId, "authenticated_session").TenantRef : null,
-        IncludedAccountCount = UserIds.Length,
+        IncludedAccountCount = IncludedAccountCount,
         IncludedTenantCount = _records.Values.Where(x => x.TenantRef != null).Select(x => x.TenantRef).Distinct().Count(),
         UnattributedTenantRecordCount = _records.Values.Count(x => x.AttributionStatus != "verified"),
         Coverage = _issues.IsEmpty ? "confirmed_sources" : "partial",

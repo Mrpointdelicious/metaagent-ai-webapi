@@ -2,7 +2,7 @@
 
 2026-11-03 增量：医生 Sandbox 通过独立的医生凭证与逐次医患关系回查接入 current_tenant，仍不接受用患者本人凭证冒充医生授权。见 [医生代查授权](doctor-delegation-v2-20261103.md)；本说明其余部分继续描述患者本人协议。
 
-本版按现有 `project` 数据库和 `dbbuniessuser` 中间表实现。患者工具原地址下直接替换为新契约，不并行发布旧输入、旧输出或 `/v2/tools` 路由。未执行数据库迁移、服务部署或 smoke test。
+2026-11-22 全局账号适配：本人范围固定为 `project.dbuser.Id` 的一条有效全局账号（`BusinessId=0, Status=1, IsDeleted=0`），须有有效患者（`RoleId=0`）或学生（`RoleId=10`）角色。租户关系读 `dbusertenant`。工具地址和响应版本不变，不需要执行数据库迁移；旧范围的会话引用、缓存和图片授权需重新取得。
 
 ## 请求与范围
 
@@ -23,7 +23,7 @@
 
 身份类型只接受 `project_user_id` 或 `login_name`，值始终为字符串。`login_name` 保留前导零，零命中或多命中都拒绝；不允许用手机号或数字 user 作为备用身份。`user` 是已登录主体，必须与凭证的 subject 一致。
 
-`all_tenants` 为默认值，只扩大到已确认属于本人的账号和来源；`current_tenant` 同时验证入口账号在当前机构的有效中间表关系和患者角色，并按每条记录的机构过滤。医生及代查身份不通过患者本人凭证校验。病历、会诊等其他资料仍使用入口账号，不随康复查询扩大范围。
+`all_tenants` 为本人默认范围，须凭证允许；不要求每条历史记录的租户仍有成员关系。病历按 `dbmedical.UserId`，处方经本人的有效病历，计划按 `dbrehaplan.UserId`，报告经已授权计划的 `dbreport.planId` 读取。`current_tenant` 必须同时有当前机构的有效 `dbusertenant` 与患者/学生角色（两者均 `Enable=0`），再按病历或计划本身的机构过滤。医生只能使用独立委托、明确指定 `current_tenant`；缺机构、缺关系或委托撤销都不放行。
 
 ## 业务后端签发凭证
 
@@ -39,7 +39,6 @@
   "actor_role": "patient",
   "current_business_id": 1,
   "allow_all_tenants": true,
-  "phone_binding_hash": null,
   "issued_at": 1793232000,
   "expires_at": 1793232300
 }
@@ -47,9 +46,7 @@
 
 示例时间戳仅展示格式；签发时使用当前 Unix 秒。signature 是 `HMAC-SHA256(key, UTF8("patient_identity_v2." + body))` 的 Base64URL 编码。完整凭证为 `patient_identity_v2.body.signature`，最长有效期为配置值与 900 秒的较小值，验证允许签发时间最多领先服务端 30 秒。
 
-业务后端确认当前手机号确实绑定该患者后，才填入 `phone_binding_hash`：对 `UTF8("phone-binding-v2|" + phone.Trim())` 计算同一密钥的 HMAC-SHA256，输出小写十六进制。未提供时不自动扩大到同号账号；提供后还会排除资料冲突、疑似测试账号及未经核实的停用账号，并返回覆盖不足原因。
-
-历史同人账号可用 `PatientAccess:ConfirmedAccountGroups` 配置经过业务核实的账号组；不要把待核查的同号列表直接写入。此配置只影响读取范围，不修改 dbuser、外键或原始记录。
+本人凭证的 `actor_role` 接受 `patient` 或 `student`。沿用 `patient` 本人凭证的纯学生账号也能查询；显式 `student` 须在所选范围有有效学生角色。二者都没有代查权限。登录名只用于定位签名锚点；旧本人凭证的 `phone_binding_hash` 不参与授权，旧 `ConfirmedAccountGroups` 配置也不生效。同手机号、姓名、证件或旧 ID 均不会扩展到另一账号。
 
 ## 响应与机构标注
 
@@ -57,9 +54,11 @@
 
 记录的 `record_tenant` 包含匿名机构引用、医院/卫生中心名称、`attribution_status`、`attribution_basis` 与 `name_source`。计划链路按 `dbrehaplan.BusinessId → dbbuniess.Id/Name` 读取，不使用入口用户或设备当前机构覆盖历史归属。当前字典名称标为 `current_directory`；已知机构但名称缺失显示“所属机构名称暂缺”，无法确认归属显示“所属机构未确认”。
 
+`get_patient_rehab` 的 `report_count`、`reports`、`report_page` 是独立于计划分页的原始报告目录：共用请求的页码和页大小，以报告创建时间、主键倒序。只列出可关联授权计划的报告，含匿名 `record_ref`、计划 ID、时间、机构；不暴露原始报告 JSON。已有设备/量表工具继续负责可解读报告的详情。一份计划可能产生多份报告，目录计数不等于已完成训练次数。
+
 `tenant_segments` 按选中记录的时间和机构分段，保留 A→B→A 顺序；记录首末时间不代表连续治疗或住院期间。无可用单次查询引用的不完整报告位置仍携带 `record_ref` 和机构标注，该引用不授权获取完整报告。列表、分析、图表提示和报告保留记录来源机构。
 
-`dbwalk` 没有机构字段，且本地历史 userId 的来源尚未全部确认。默认 `WalkUserIdsUseProjectNamespace=false`，不凭相同数字猜测归属。可配置业务核实的 `ConfirmedWalkRecords`（WalkId、ProjectUserId、BusinessId）；仅在已核实整个来源命名空间后才开启全局 project 命名空间开关。当前机构查询只纳入已确认记录级机构的步道记录，缺失部分明确返回覆盖不足。
+`dbwalk.BusinessId` 可以标注机构，但不能证明患者身份。步道仅接受逐条核实的 `PatientAccess:ConfirmedWalkRecords`（WalkId、ProjectUserId、BusinessId）；同一条映射有冲突即排除，当前机构视图还须有该机构的明确映射。旧 `WalkUserIdsUseProjectNamespace` 开关不再生效。微信来源没有已验证的账号映射，暂不读取；不把未覆盖解释为没有记录。
 
 ## 分析与报告
 
@@ -73,10 +72,10 @@ IReGo 纵向选择使用 `selection_mode=latest_count/recent_ordinal_range/date_
 
 ## 本次验证
 
-使用构建、隔离 SQLite 数据和纯 MVC/控制器单元测试验证身份、范围、分页、机构标注、引用失效及报告授权。测试运行命令排除所有名称包含 Smoke 的用例：
+使用隔离 SQLite 数据与控制器测试验证身份、范围、分页、机构标注、引用失效及报告授权：
 
 ```powershell
-dotnet test AI_WebApi.Tests/AI_WebApi.Tests.csproj --no-restore --filter 'FullyQualifiedName!~Smoke'
+dotnet test AI_WebApi.Tests/AI_WebApi.Tests.csproj --no-restore
 ```
 
-本次不启动 Web 服务，不探测真实 HTTP 接口，不写入当前 project 数据库。真实调用方接入及新数据库适配分别进行。
+2026-11-22 另用只读账号连接 Docker 的 `mysql8.project` 验证临时 HTTP 服务。对同一全局账号逐页与独立 SQL 核对：本人跨机构为 85 条病历、46 条病历－处方关联、68 条计划、23 条报告；医生当前机构为 17、7、9、1。医生委托使用本地模拟回调，跨机构及撤销后均返回 403。另验纯学生账号、同号职工隔离与未映射步道排除；未写入数据或部署服务。

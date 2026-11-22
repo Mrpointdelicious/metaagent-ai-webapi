@@ -95,6 +95,9 @@ public sealed class PatientRehabDto
     public int PlanCount { get; init; }
     public IReadOnlyList<PatientRehabPlanDto> Plans { get; init; } = Array.Empty<PatientRehabPlanDto>();
     public PatientLayerPageDto PlanPage { get; init; } = new();
+    public int ReportCount { get; init; }
+    public IReadOnlyList<PatientPlanReportDto> Reports { get; init; } = Array.Empty<PatientPlanReportDto>();
+    public PatientLayerPageDto ReportPage { get; init; } = new();
     public PatientRehabDeviceDto Iretour { get; init; } = new();
     public PatientRehabDeviceDto Irego { get; init; } = new();
     public IReadOnlyList<string> Limitations { get; init; } = Array.Empty<string>();
@@ -107,6 +110,15 @@ public sealed class PatientRehabDeviceDto
     public object? History { get; init; }
     public IReadOnlyList<string> ReasonCodes { get; init; } = Array.Empty<string>();
     public string? PatientMessage { get; init; }
+}
+
+[JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
+public sealed class PatientPlanReportDto
+{
+    public string RecordRef { get; init; } = string.Empty;
+    public int PlanId { get; init; }
+    public DateTime? RecordedAt { get; init; }
+    public RecordTenantDto RecordTenant { get; init; } = new();
 }
 
 [JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]

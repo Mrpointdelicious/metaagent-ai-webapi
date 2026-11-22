@@ -16,8 +16,7 @@ public sealed class DoctorDelegationV2Tests
     private const string DoctorKey = "synthetic-independent-doctor-signing-key-20261103";
     private static PatientAccessOptions Config() => new()
     {
-        IdentitySigningKey = PatientAccessContextTests.Key, DoctorDelegationSigningKey = DoctorKey,
-        ConfirmedAccountGroups = new() { new[] { 7, 8 } }
+        IdentitySigningKey = PatientAccessContextTests.Key, DoctorDelegationSigningKey = DoctorKey
     };
     private static PatientIdentityProof Proof(int version = 1) => new()
     {
@@ -61,9 +60,11 @@ public sealed class DoctorDelegationV2Tests
         var resolver = new PatientAccessContextResolver(new PatientAccessRepository(db), Options.Create(Config()), validation);
         var resolved = await resolver.ResolveAsync(Input(), "current_tenant", "r", default);
         Assert.True(resolved.IsSuccess, resolved.ReasonCode);
-        Assert.Equal(new[] { 7 }, resolved.Context!.Access!.UserIds);
+        Assert.Equal(7, resolved.Context!.Access!.AnchorUserId);
+        Assert.Equal("doctor", resolved.Context.Access.ActorRole);
         var data = await new IReGoDataRepository(db).LoadPatientDataAsync(resolved.Context);
         Assert.Equal(new[] { 11 }, data.Plans.Select(p => p.Id));
+        Assert.Equal(21, Assert.Single(data.Reports).Id);
         Assert.Equal(1, validation.Calls);
         Assert.Equal("DOCTOR_DELEGATION_DENIED", (await resolver.ResolveAsync(Input(), "all_tenants", "r", default)).ReasonCode);
         validation.Active = false;

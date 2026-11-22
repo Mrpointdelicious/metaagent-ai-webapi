@@ -197,7 +197,7 @@ public sealed class IReGoPatientEvaluationServiceTests
         }
 
         public Task<IReGoRawDataSet> LoadPatientDataAsync(
-            int patientId,
+            TrustedPatientContext context,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(_data);
     }
