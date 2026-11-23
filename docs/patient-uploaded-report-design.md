@@ -52,7 +52,7 @@ sequenceDiagram
 
 ## 3. MySQL 表结构
 
-建议在 MySQL 8.0.16+ 的独立业务 schema 中使用 InnoDB。AI_WebApi 增加报告库专用连接，既有患者和康复源库继续由原连接读取。所有 `DATETIME(6)` 按 UTC 写入。纸面报告日期用 `DATE`。以下两段可在空 schema 中顺序执行。[MySQL CHECK 约束](https://dev.mysql.com/doc/refman/8.0/en/create-table-check-constraints.html)
+建议在 MySQL 8.0.16+ 的独立业务 schema 中使用 InnoDB。AI_WebApi 增加报告库专用连接，既有患者和康复源库继续由原连接读取。所有 `DATETIME(6)` 按 UTC 写入。纸面报告日期用 `DATE`。以下两段可在空 schema 中顺序执行。[建表 SQL](patient-uploaded-report-schema.sql) · [字段字典与文档存储方案](patient-uploaded-report-storage.md) · [MySQL CHECK 约束](https://dev.mysql.com/doc/refman/8.0/en/create-table-check-constraints.html)
 
 ### 3.1 `patient_report`　每行是一份归档版本
 
@@ -88,7 +88,8 @@ CREATE TABLE patient_report (
     UNIQUE KEY uq_owner_upload (owner_user_id, upload_request_key),
     KEY ix_owner_date (owner_user_id, archive_state, report_date, id),
     KEY ix_owner_tenant_date (owner_user_id, upload_business_id, archive_state, report_date, id),
-    CONSTRAINT ck_report_size CHECK (archived_bytes BETWEEN 1 AND 20971520),
+    CONSTRAINT ck_report_size CHECK (archived_bytes BETWEEN 1 AND 20971520
+                                     AND archived_bytes = OCTET_LENGTH(archived_pdf)),
     CONSTRAINT ck_report_pages CHECK (page_count BETWEEN 1 AND 30),
     CONSTRAINT ck_report_revision CHECK (revision >= 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
