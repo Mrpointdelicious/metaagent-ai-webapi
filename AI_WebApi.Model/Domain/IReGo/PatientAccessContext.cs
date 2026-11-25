@@ -16,7 +16,6 @@ public sealed class PatientAccessContext
     public int IncludedAccountCount => AnchorUserId > 0 ? 1 : 0;
     public string ScopeFingerprint { get; init; } = string.Empty;
     public IReadOnlyDictionary<int, string?> Institutions { get; init; } = new Dictionary<int, string?>();
-    public IReadOnlyDictionary<int, ConfirmedWalkRecordBinding> WalkRecords { get; init; } = new Dictionary<int, ConfirmedWalkRecordBinding>();
     private readonly ConcurrentDictionary<string, byte> _issues = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, RecordTenantDto> _records = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _owners = new(StringComparer.Ordinal);

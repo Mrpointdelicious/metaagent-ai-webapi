@@ -58,7 +58,7 @@
 
 `tenant_segments` 按选中记录的时间和机构分段，保留 A→B→A 顺序；记录首末时间不代表连续治疗或住院期间。无可用单次查询引用的不完整报告位置仍携带 `record_ref` 和机构标注，该引用不授权获取完整报告。列表、分析、图表提示和报告保留记录来源机构。
 
-`dbwalk.BusinessId` 可以标注机构，但不能证明患者身份。步道仅接受逐条核实的 `PatientAccess:ConfirmedWalkRecords`（WalkId、ProjectUserId、BusinessId）；同一条映射有冲突即排除，当前机构视图还须有该机构的明确映射。旧 `WalkUserIdsUseProjectNamespace` 开关不再生效。微信来源没有已验证的账号映射，暂不读取；不把未覆盖解释为没有记录。
+步道与下肢/量表统一使用 `project` 单库，按 `dbwalk.userId == project.dbuser.Id` 且设备 `DeviceType = 6` 直接读取 `dbwalk`、`walkreport` 与 `walkreportdetails`；记录级机构归属取 `dbwalk.BusinessId`，当前机构视图按 `dbwalk.BusinessId == current_business_id` 筛选。微信来源没有已验证的账号映射，暂不读取；不把未覆盖解释为没有记录。
 
 ## 分析与报告
 

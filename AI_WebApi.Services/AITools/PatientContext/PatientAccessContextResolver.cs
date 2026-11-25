@@ -100,19 +100,12 @@ public sealed class PatientAccessContextResolver : IPatientAccessContextResolver
             return Deny("PATIENT_SELF_ACCESS_REQUIRED", 403);
         var actorRole = proof.ActorRole == "patient" && !scopedRoles.Any(role => role.RoleId == DbRoleUserEntity.PatientRoleId)
             ? "student" : proof.ActorRole;
-        var walks = _options.ConfirmedWalkRecords.Where(binding => binding.WalkId > 0)
-            .GroupBy(binding => binding.WalkId)
-            .Where(group => group.All(binding => binding.ProjectUserId == anchor.Id && binding.BusinessId == group.First().BusinessId))
-            .Select(group => group.First())
-            .Where(binding => scope == "all_tenants" || binding.BusinessId == proof.CurrentBusinessId)
-            .ToDictionary(binding => binding.WalkId);
         var scopeMaterial = JObject.FromObject(new
         {
             version = "global-patient-account-v1", proof.Subject, anchor.Id, actorRole, scope,
             tenant = scope == "current_tenant" ? proof.CurrentBusinessId : null,
             roles = source.Roles.OrderBy(r => r.UserId).ThenBy(r => r.BusinessId).ThenBy(r => r.RoleId).ThenBy(r => r.Enable),
             memberships = source.Memberships.OrderBy(t => t.UserId).ThenBy(t => t.BusinessId).ThenBy(t => t.Enable),
-            walks = walks.Values.OrderBy(w => w.WalkId),
             institution_names = source.Institutions.OrderBy(t => t.Key)
         });
         if (doctor) scopeMaterial["DoctorDelegation"] = JObject.FromObject(proof.DoctorDelegation!);
@@ -120,7 +113,7 @@ public sealed class PatientAccessContextResolver : IPatientAccessContextResolver
         var access = new PatientAccessContext(_options.IdentitySigningKey)
         {
             AnchorUserId = anchor.Id, Subject = proof.Subject, ActorRole = actorRole, CurrentBusinessId = proof.CurrentBusinessId, DataScope = scope,
-            ScopeFingerprint = fingerprint, Institutions = source.Institutions, WalkRecords = walks
+            ScopeFingerprint = fingerprint, Institutions = source.Institutions
         };
         return new(new TrustedPatientContext
         {

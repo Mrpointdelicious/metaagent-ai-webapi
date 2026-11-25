@@ -23,26 +23,35 @@ public sealed class IReTourDataRepository : IIReTourDataRepository
             .Where(x => x.Id == access.AnchorUserId && x.BusinessId == 0 && x.Status == 1 && x.IsDeleted == 0)
             .FirstAsync(cancellationToken);
         if (patient == null) return new();
-        access.AddIssue("SOURCE_PATIENT_BINDING_UNVERIFIED");
-        if (access.DataScope == "current_tenant")
-            access.AddIssue("IRETOUR_HISTORICAL_TENANT_COVERAGE_PARTIAL");
-        var confirmedWalkIds = access.WalkRecords.Keys.ToArray();
-        if (confirmedWalkIds.Length == 0) return new() { Patient = patient };
+        var binding = new IReTourPatientBinding
+        {
+            Verified = true,
+            SourceUserNamespace = "project.dbuser",
+            BindingMethod = "direct_primary_key",
+            BindingVersion = 1
+        };
         var walks = await _db.Queryable<IReTourWalkEntity>()
             .InnerJoin<IReTourDeviceEntity>((w, d) => w.DeviceId == d.Id)
-            .Where((w, d) => d.DeviceType == IReTourContract.RequiredDeviceType && confirmedWalkIds.Contains(w.Id))
+            .Where((w, d) => w.UserId == access.AnchorUserId && d.DeviceType == IReTourContract.RequiredDeviceType)
+            .WhereIF(access.DataScope == "current_tenant", (w, d) => w.BusinessId == access.CurrentBusinessId)
             .OrderBy((w, d) => w.Id, SqlSugar.OrderByType.Desc)
             .Select((w, d) => w).Take(1001).ToListAsync(cancellationToken);
         if (walks.Count > 1000) throw new IReTourReadLimitException();
-        walks.RemoveAll(walk => walk.BusinessId > 0 && access.WalkRecords[walk.Id].BusinessId is > 0 &&
-            walk.BusinessId != access.WalkRecords[walk.Id].BusinessId);
-        if (walks.Count == 0) return new() { Patient = patient };
+        if (walks.Count == 0)
+        {
+            return new IReTourRawDataSet
+            {
+                Patient = patient,
+                ScopedOwnershipVerified = true,
+                Binding = binding,
+                SourceUserIds = new[] { access.AnchorUserId }
+            };
+        }
         foreach (var walk in walks)
         {
-            var binding = access.WalkRecords[walk.Id];
-            walk.VerifiedBusinessId = walk.BusinessId > 0 ? walk.BusinessId : binding.BusinessId;
+            walk.VerifiedBusinessId = walk.BusinessId > 0 ? walk.BusinessId : null;
             walk.RecordTenant = access.Observe($"project.dbwalk:{walk.Id}", walk.VerifiedBusinessId,
-                walk.BusinessId > 0 ? "project.dbwalk.BusinessId" : "confirmed_walk_record_binding", binding.ProjectUserId);
+                "project.dbwalk.BusinessId", walk.UserId);
         }
 
         var walkIds = walks.Select(x => x.Id).ToList();
@@ -70,7 +79,7 @@ public sealed class IReTourDataRepository : IIReTourDataRepository
         {
             Patient = patient,
             ScopedOwnershipVerified = true,
-            Binding = new IReTourPatientBinding { Verified = true, SourceUserNamespace = "project.dbuser", BindingMethod = "confirmed_walk_record", BindingVersion = 1 },
+            Binding = binding,
             SourceUserIds = new[] { access.AnchorUserId },
             Walks = walks,
             Devices = devices.ToDictionary(x => x.Id),
