@@ -38,6 +38,9 @@ builder.Services.AddScoped<IDifySystemContextResolver, DifySystemContextResolver
 builder.Services.AddScoped<IDifyServiceRequestAuthenticator,
     DifyServiceRequestAuthenticator>();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("patient-self-session", client => client.Timeout = TimeSpan.FromSeconds(4))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+builder.Services.AddScoped<AI_WebApi.Repository.AITools.IPatientSelfReportCount, AI_WebApi.Repository.AITools.PatientSelfReportCount>();
 builder.Services.AddHttpClient("doctor-delegation").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddMemoryCache();
 builder.Services.Configure<PatientAccessOptions>(builder.Configuration.GetSection(PatientAccessOptions.SectionName));
