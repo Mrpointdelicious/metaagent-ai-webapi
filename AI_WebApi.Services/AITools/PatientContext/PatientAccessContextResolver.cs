@@ -32,21 +32,57 @@ public sealed class PatientAccessContextResolver : IPatientAccessContextResolver
         if (Encoding.UTF8.GetByteCount(_options.IdentitySigningKey) < 32) return Deny("PATIENT_IDENTITY_SIGNING_NOT_CONFIGURED", 503);
         var scope = dataScope ?? "all_tenants";
         if (scope is not ("all_tenants" or "current_tenant")) return Deny("INVALID_DATA_SCOPE", 400);
-        var proof = PatientIdentityProofCodec.VerifyForAccess(input?.IdentityContextToken, _options, DateTimeOffset.UtcNow);
-        if (proof == null || input?.User != proof.Subject) return Deny("PATIENT_IDENTITY_PROOF_INVALID");
-        var doctor = proof.ActorRole == "doctor";
-        if (doctor && (scope != "current_tenant" || _delegations == null ||
-            !await _delegations.ValidateAsync(proof.DoctorDelegation!, ct))) return Deny("DOCTOR_DELEGATION_DENIED", 403);
-        if (scope == "all_tenants" && !proof.AllowAllTenants) return Deny("PATIENT_SCOPE_FORBIDDEN", 403);
-        if (input.CurrentBusinessId.HasValue && input.CurrentBusinessId != proof.CurrentBusinessId) return Deny("CURRENT_TENANT_MISMATCH", 403);
-        if (input.ConversationId?.Length > 256) return Deny("INVALID_DIFY_SYSTEM_CONTEXT", 400);
+        var hasToken = !string.IsNullOrWhiteSpace(input?.IdentityContextToken);
+        PatientIdentityProof? proof = null;
+        if (_options.RequireIdentityProof || hasToken)
+        {
+            proof = PatientIdentityProofCodec.VerifyForAccess(input?.IdentityContextToken, _options, DateTimeOffset.UtcNow);
+            if (proof == null || input?.User != proof.Subject) return Deny("PATIENT_IDENTITY_PROOF_INVALID");
+            if (proof.ActorRole == "doctor" && (scope != "current_tenant" || _delegations == null ||
+                !await _delegations.ValidateAsync(proof.DoctorDelegation!, ct))) return Deny("DOCTOR_DELEGATION_DENIED", 403);
+            if (scope == "all_tenants" && !proof.AllowAllTenants) return Deny("PATIENT_SCOPE_FORBIDDEN", 403);
+            if (input.CurrentBusinessId.HasValue && input.CurrentBusinessId != proof.CurrentBusinessId) return Deny("CURRENT_TENANT_MISMATCH", 403);
+        }
+        else if (input == null || string.IsNullOrWhiteSpace(input.User) || input.User.Length > 256)
+        {
+            return Deny("INVALID_DIFY_SYSTEM_CONTEXT", 400);
+        }
+        if (input!.ConversationId?.Length > 256) return Deny("INVALID_DIFY_SYSTEM_CONTEXT", 400);
         var identity = input.PatientIdentity;
         if (identity == null || identity.Type is not ("project_user_id" or "login_name") ||
             string.IsNullOrWhiteSpace(identity.Value) || identity.Value.Length > 64 || identity.Value != identity.Value.Trim())
             return Deny("INVALID_PATIENT_IDENTITY", 400);
         var anchors = await _repository.FindAnchorAsync(identity.Type, identity.Value, ct);
-        if (anchors.Count != 1) return Deny(identity.Type == "login_name" && anchors.Count > 1 ? "LOGIN_NAME_NOT_UNIQUE" : "PATIENT_IDENTITY_NOT_FOUND", 404);
+        var matchedByPhone = false;
+        if (anchors.Count == 0 && !_options.RequireIdentityProof && identity.Type == "login_name")
+        {
+            anchors = await _repository.FindAnchorByPhoneAsync(identity.Value, ct);
+            matchedByPhone = anchors.Count > 0;
+        }
+        if (anchors.Count != 1)
+        {
+            if (anchors.Count > 1)
+                return Deny(matchedByPhone ? "PHONE_NOT_UNIQUE" : (identity.Type == "login_name" ? "LOGIN_NAME_NOT_UNIQUE" : "PATIENT_IDENTITY_NOT_FOUND"), 404);
+            return Deny("PATIENT_IDENTITY_NOT_FOUND", 404);
+        }
         var anchor = anchors[0];
+        if (proof == null)
+        {
+            var nowSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var lifetime = Math.Clamp(_options.MaximumProofLifetimeSeconds, 30, 900);
+            proof = new PatientIdentityProof
+            {
+                Purpose = "patient_rehab_v2",
+                Subject = input.User.Trim(),
+                AnchorUserId = anchor.Id,
+                ActorRole = "patient",
+                CurrentBusinessId = input.CurrentBusinessId,
+                AllowAllTenants = true,
+                IssuedAt = nowSeconds,
+                ExpiresAt = nowSeconds + lifetime
+            };
+        }
+        var doctor = proof.ActorRole == "doctor";
         if (anchor.Id != proof.AnchorUserId) return Deny("PATIENT_IDENTITY_MISMATCH", 403);
         if (anchor.Status != 1 || anchor.IsDeleted != false) return Deny("PATIENT_ACCOUNT_UNAVAILABLE", 403);
         if (anchor.BusinessId != 0) return Deny("PATIENT_GLOBAL_ACCOUNT_REQUIRED", 403);

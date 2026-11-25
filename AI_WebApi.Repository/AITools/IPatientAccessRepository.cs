@@ -14,5 +14,6 @@ public sealed class PatientAccessData
 public interface IPatientAccessRepository
 {
     Task<IReadOnlyList<PatientEntity>> FindAnchorAsync(string kind, string value, CancellationToken ct);
+    Task<IReadOnlyList<PatientEntity>> FindAnchorByPhoneAsync(string phone, CancellationToken ct);
     Task<PatientAccessData> LoadAccessAsync(int userId, CancellationToken ct);
 }

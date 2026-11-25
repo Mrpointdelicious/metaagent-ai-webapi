@@ -21,6 +21,16 @@ public sealed class PatientAccessRepository : IPatientAccessRepository
             { Id = u.Id, Status = u.Status, IsDeleted = u.IsDeleted, BusinessId = u.BusinessId }).Take(2).ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<PatientEntity>> FindAnchorByPhoneAsync(string phone, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(phone)) return Array.Empty<PatientEntity>();
+        return await _db.Queryable<PatientEntity>()
+            .Where(u => u.Phone == phone && u.BusinessId == 0 && u.Status == 1 && u.IsDeleted == false)
+            .Select(u => new PatientEntity
+                { Id = u.Id, Status = u.Status, IsDeleted = u.IsDeleted, BusinessId = u.BusinessId })
+            .Take(2).ToListAsync(ct);
+    }
+
     public async Task<PatientAccessData> LoadAccessAsync(int userId, CancellationToken ct)
     {
         var memberships = await _db.Queryable<PatientTenantEntity>().Where(t => t.UserId == userId).ToListAsync(ct);

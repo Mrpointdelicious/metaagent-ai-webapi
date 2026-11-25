@@ -82,8 +82,26 @@ public sealed class PatientV2ScopeFilter : IAsyncActionFilter
             if (description.Coverage == "partial" && json.Value<string>("status") == ToolStatuses.Success) json["status"] = ToolStatuses.Partial;
             if (json["data"] is JObject artifact && artifact.Value<string>("artifact_ref") is { } reference && reference.StartsWith("irego_scope_v2_", StringComparison.Ordinal))
             {
-                var proof = PatientIdentityProofCodec.VerifyForAccess(system?.IdentityContextToken, _options, DateTimeOffset.UtcNow)!;
-                var expiry = Math.Min(DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(), proof.ExpiresAt);
+                var nowUtc = DateTimeOffset.UtcNow;
+                var proof = PatientIdentityProofCodec.VerifyForAccess(system?.IdentityContextToken, _options, nowUtc);
+                if (proof == null && !_options.RequireIdentityProof)
+                {
+                    var nowSeconds = nowUtc.ToUnixTimeSeconds();
+                    var lifetime = Math.Clamp(_options.MaximumProofLifetimeSeconds, 30, 900);
+                    proof = new PatientIdentityProof
+                    {
+                        Purpose = "patient_rehab_v2",
+                        Subject = access.Subject,
+                        AnchorUserId = access.AnchorUserId,
+                        ActorRole = access.ActorRole,
+                        CurrentBusinessId = access.CurrentBusinessId,
+                        AllowAllTenants = access.DataScope == "all_tenants",
+                        IssuedAt = nowSeconds,
+                        ExpiresAt = nowSeconds + lifetime
+                    };
+                }
+                if (proof == null) { Fail(context, 401, "PATIENT_IDENTITY_PROOF_INVALID"); return; }
+                var expiry = Math.Min(nowUtc.AddMinutes(5).ToUnixTimeSeconds(), proof.ExpiresAt);
                 var grant = PatientArtifactGrantCodec.Issue(new(reference, access.ScopeFingerprint, access.DataScope, proof, expiry), _options.IdentitySigningKey);
                 var oldUrl = artifact.Value<string>("image_url");
                 var origin = Uri.TryCreate(oldUrl, UriKind.Absolute, out var original) ? original.GetLeftPart(UriPartial.Authority) : $"{context.HttpContext.Request.Scheme}://{context.HttpContext.Request.Host}";

@@ -49,11 +49,18 @@ public sealed class DifyToolSecurityOperationFilter : IOperationFilter
 
 public sealed class DifySystemContextSchemaFilter : ISchemaFilter
 {
+    private readonly PatientAccessOptions _options;
+    public DifySystemContextSchemaFilter(Microsoft.Extensions.Options.IOptions<PatientAccessOptions> options)
+    {
+        _options = options.Value;
+    }
     public void Apply(OpenApiSchema schema, SchemaFilterContext context)
     {
         if (context.Type == typeof(DifySystemContextDto))
         {
-            schema.Required.UnionWith(new[] { "user", "patient_identity", "identity_context_token" });
+            schema.Required.UnionWith(_options.RequireIdentityProof
+                ? new[] { "user", "patient_identity", "identity_context_token" }
+                : new[] { "user", "patient_identity" });
             schema.Description = "[SYSTEM ONLY] 已认证业务后端注入的患者登录上下文，模型不得生成。";
             foreach (var property in schema.Properties.Values)
                 property.Extensions["x-parameter-source"] = new OpenApiString("business_backend_runtime");
