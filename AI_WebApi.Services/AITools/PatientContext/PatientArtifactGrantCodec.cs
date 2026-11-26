@@ -18,6 +18,14 @@ public static class PatientArtifactGrantCodec
     }
     public static PatientArtifactGrant? Verify(string? token, string key, DateTimeOffset now)
     {
+        var grant = ReadSignedBinding(token, key);
+        return grant != null && grant.ExpiresAt > now.ToUnixTimeSeconds() &&
+            grant.ExpiresAt <= now.AddMinutes(5).ToUnixTimeSeconds() ? grant : null;
+    }
+
+    // Authenticated provenance of a saved report. Only Verify authorizes a download.
+    public static PatientArtifactGrant? ReadSignedBinding(string? token, string key)
+    {
         if (token == null || token.Length > 16384 || Encoding.UTF8.GetByteCount(key) < 32) return null;
         try
         {
@@ -26,8 +34,8 @@ public static class PatientArtifactGrantCodec
             var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes(key), Encoding.UTF8.GetBytes(parts[0] + "." + parts[1]));
             if (!CryptographicOperations.FixedTimeEquals(expected, Decode(parts[2]))) return null;
             var grant = JsonConvert.DeserializeObject<PatientArtifactGrant>(Encoding.UTF8.GetString(Decode(parts[1])));
-            return grant != null && grant.ExpiresAt > now.ToUnixTimeSeconds() && grant.ExpiresAt <= now.AddMinutes(5).ToUnixTimeSeconds() &&
-                grant.ExpiresAt <= grant.Identity.ExpiresAt && grant.ArtifactRef.StartsWith("irego_scope_v2_", StringComparison.Ordinal) ? grant : null;
+            return grant?.Identity != null && grant.ExpiresAt <= grant.Identity.ExpiresAt &&
+                grant.ArtifactRef?.StartsWith("irego_scope_v2_", StringComparison.Ordinal) == true ? grant : null;
         }
         catch (Exception e) when (e is FormatException or JsonException or ArgumentException or NullReferenceException) { return null; }
     }

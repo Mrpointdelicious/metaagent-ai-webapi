@@ -156,6 +156,47 @@ public sealed class PatientContractV2Tests
         Assert.IsType<UnauthorizedResult>(await controller.Content(reference,grant+"x",default));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task History_reads_the_original_bytes_by_reference_after_the_download_URL_expires(bool requireProof)
+    {
+        using var db = new PatientAccessTestDatabase();
+        var options = Options.Create(new PatientAccessOptions { IdentitySigningKey = Key, RequireIdentityProof = requireProof });
+        var resolver = new PatientAccessContextResolver(new PatientAccessRepository(db), options);
+        var proof = PatientAccessContextTests.Proof();
+        var current = PatientAccessContextTests.Input(proof);
+        var original = await resolver.ResolveAsync(current, "all_tenants", "test", default);
+        var images = Options.Create(new IReGoToolOptions { DifyServiceBearerToken = "history-test-service" });
+        images.Value.ReportImage.SigningKey = Key;
+        images.Value.ReportImage.PublicBaseUrl = "http://localhost:15043";
+        var store = new EphemeralIReGoReportArtifactStore(images);
+        var reference = store.CreateArtifactRef(original.Context!.PatientRef, "session", "snapshot", "template");
+        var bytes = new byte[] { 3, 4, 5 };
+        store.Store(reference, bytes);
+        var receipt = PatientArtifactGrantCodec.Issue(new(reference, original.Context.Access!.ScopeFingerprint,
+            "all_tenants", proof, DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeSeconds()), Key);
+        var api = new PatientReportArtifactsV2Controller(resolver, store, options)
+            { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+        var auth = new DifyServiceRequestAuthenticator(images);
+        var ownerOnly = new DifySystemContextDto { User = proof.Subject };
+        Task<IActionResult> Read(DifySystemContextDto viewer, string saved, string id) => api.ReadForChat(id,
+            new() { SystemContext = viewer, OriginalGrant = saved }, auth, default);
+        Assert.IsType<UnauthorizedResult>(await api.Content(reference, receipt, default));
+        Assert.Equal(401, Assert.IsType<StatusCodeResult>(await Read(current, receipt, reference)).StatusCode);
+        api.Request.Headers.Authorization = "Bearer history-test-service";
+        Assert.Equal(403, Assert.IsType<StatusCodeResult>(await Read(new() { User = "other" }, receipt, reference)).StatusCode);
+        Assert.Equal(403, Assert.IsType<StatusCodeResult>(await Read(current, receipt + "x", reference)).StatusCode);
+        Assert.Equal(403, Assert.IsType<StatusCodeResult>(await Read(current, receipt, reference + "0")).StatusCode);
+        if (requireProof) Assert.Equal(401, Assert.IsType<StatusCodeResult>(await Read(ownerOnly, receipt, reference)).StatusCode);
+        var viewer = requireProof ? current : ownerOnly;
+        var read = Assert.IsType<FileContentResult>(await Read(viewer, receipt, reference));
+        Assert.Equal("image/png", read.ContentType);
+        Assert.Equal(bytes, read.FileContents);
+        db.Db.Updateable<PatientTenantEntity>().SetColumns(t => t.Enable == -1).Where(t => t.UserId == 7).ExecuteCommand();
+        Assert.Equal(403, Assert.IsType<StatusCodeResult>(await Read(viewer, receipt, reference)).StatusCode);
+    }
+
     private static IReGoHistoryItemDto Item(string reference,int day,RecordTenantDto tenant)=>new()
     {SessionRef=reference,SessionTime=new DateTimeOffset(2026,10,day,9,0,0,TimeSpan.FromHours(8)),RecordTenant=tenant};
 }

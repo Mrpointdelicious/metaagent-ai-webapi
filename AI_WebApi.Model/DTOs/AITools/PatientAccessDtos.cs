@@ -59,3 +59,11 @@ public sealed class ResolvePatientAccessRequestDto
     public DifySystemContextDto? SystemContext { get; init; }
     public string? DataScope { get; init; }
 }
+
+[JsonObject(NamingStrategyType = typeof(SnakeCaseNamingStrategy))]
+public sealed class ReadPatientReportRequest
+{
+    public string OriginalGrant { get; init; } = string.Empty;
+    public DifySystemContextDto? SystemContext { get; init; }
+    public string DataScope { get; init; } = "all_tenants";
+}

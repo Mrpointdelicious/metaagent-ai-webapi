@@ -66,7 +66,9 @@
 
 IReGo 纵向选择使用 `selection_mode=latest_count/recent_ordinal_range/date_range`，窗口最多 10 个报告位置；不再通过旧 selector/session_refs 控制公开请求。单次分析使用上一步发现的 session_ref。单次响应只保留 canonical `report_blocks` 和 `overview.report_block_count`，不返回 direct_training/games/assessments 分组别名；能力评价使用 basic_evaluation，不返回 patient_message 别名。
 
-报告图片使用 `/api/ai/patients/report-artifacts/{artifact_ref}/content?access_grant=…`，授权有效期不超过 5 分钟和原身份凭证有效期。访问时重新校验账号/角色/租户绑定及范围摘要；身份授权变化后旧地址失效。下载凭证用途独立，不能用于其他患者工具。保留完整 URL 查询参数；过期后用新身份凭证重新调用报告工具取得新地址。
+新生成的报告通过 `GET /api/ai/patients/report-artifacts/{artifact_ref}/content?access_grant=…` 下载，有效期取 5 分钟与原身份凭证剩余时间的较短值。直连 `15043` 使用 `/api/ai/` 前缀。
+
+回看聊天时，在原 `/v1/messages` 或 `/v1/messages/query` 请求中附上该页返回的 `message_id` 和 `artifact_ref`，沿用读取这条消息的身份和分页参数。接口验证消息、报告归属和当前权限后，按引用直接返回已保存的 `image/png`。历史回看无需生成报告或重新签发下载凭证。
 
 旧裸 patientId 控制器、旧 robot/project 身份映射返回值和旧公开图片下载动作已移除。MetaAgent 当前 main 尚需对应改造，位置及调整要求见 [MetaAgent 对接评估](metaagent-v2-adaptation-20261029.md)。
 
