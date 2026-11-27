@@ -6,7 +6,7 @@ namespace AI_WebApi.Services.AITools.Assessment;
 /// <summary>Product identity directory, not a clinical scoring/threshold registry.</summary>
 public static class AssessmentScaleCatalog
 {
-    public const string Version = "project-online-scale-catalog-v2";
+    public const string Version = "project-online-scale-catalog-v3";
 
     public static IReadOnlySet<string> OnlineGames { get; } = new HashSet<string>(StringComparer.Ordinal)
     { "饥饿的小鸟", "色盲测试", "小镇警探", "打地鼠", "舒尔特方格", "沙滩坦克", "记忆速配" };
@@ -39,6 +39,13 @@ public static class AssessmentScaleCatalog
                 "蒙特利尔认知评估量表MoCA-B",
                 "MoCA-B",
                 "MoCA"
+            },
+            // CASI reports append the acronym the same way (observed in the 2026-11-21 dump).
+            [10] = new[]
+            {
+                "老年人认知功能筛查量表(CASI)",
+                "老年人认知功能筛查量表CASI",
+                "CASI"
             }
         };
 

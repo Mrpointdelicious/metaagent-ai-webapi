@@ -126,7 +126,7 @@ public static class AssessmentReportHtmlBuilder
             .Append(E(EvidenceLabel(standard.EvidenceStatus))).Append("</span></div>");
 
         if (standard.IsBlocked)
-            html.Append("<div class=\"empty\">").Append(E(record.Interpretation?.Summary ?? "缺少判读所需信息，未做结论。")).Append("</div>");
+            html.Append("<div class=\"empty\">依据不足，未做判读（原因见 01 区）。</div>");
         else
         {
             html.Append("<table class=\"bands\"><tr><th>区间</th><th>分级</th><th>说明</th></tr>");
@@ -165,11 +165,17 @@ public static class AssessmentReportHtmlBuilder
             html.Append("<div class=\"chart-head\"><span>每题得分</span><span>共 ").Append(items.Count)
                 .Append(" 题 · 已答 ").Append(items.Count(x => x.Answered)).Append(" 题</span></div>");
             AppendBarChart(html, items);
-            html.Append("<div class=\"chart-legend\">")
-                .Append("<span><i style=\"background:").Append(Palette[0]).Append("\"></i>满分</span>")
-                .Append("<span><i style=\"background:").Append(Palette[3]).Append("\"></i>部分得分</span>")
-                .Append("<span><i style=\"background:#c9d6dc\"></i>0 分</span>")
-                .Append("<span><i style=\"background:#edf2f4\"></i>未作答</span></div>");
+            html.Append("<div class=\"chart-legend\">");
+            if (items.Any(x => x.MaxScore is > 0))
+                html.Append("<span><i style=\"background:").Append(Palette[0]).Append("\"></i>满分</span>")
+                    .Append("<span><i style=\"background:").Append(Palette[3]).Append("\"></i>部分得分</span>")
+                    .Append("<span><i style=\"background:#c9d6dc\"></i>0 分</span>")
+                    .Append("<span><i style=\"background:#dde7eb\"></i>未作答</span>");
+            else
+                html.Append("<span><i style=\"background:").Append(Palette[0]).Append("\"></i>已作答</span>")
+                    .Append("<span><i style=\"background:#dde7eb\"></i>未作答</span>")
+                    .Append("<span style=\"color:#7d939d\">该量表未提供每题满分，按「作答 / 未作答」展示</span>");
+            html.Append("</div>");
         }
 
         if (data.Records.Count > 1) AppendRecordTable(html, data.Records);
@@ -178,31 +184,51 @@ public static class AssessmentReportHtmlBuilder
 
     private static void AppendBarChart(StringBuilder html, IReadOnlyList<AssessmentItemDto> items)
     {
-        const int width = 1040, height = 240, baseline = 200, top = 24;
-        var gap = 6;
-        var slot = Math.Max(10, (width - 40) / Math.Max(1, items.Count));
-        var barWidth = Math.Max(4, slot - gap);
+        const int width = 1040, height = 250, baseline = 205, top = 24;
+        var gap = 4;
+        var slot = Math.Max(12, (width - 60) / Math.Max(1, items.Count));
+        var barWidth = Math.Max(8, slot - gap);
         html.Append("<svg class=\"bars\" viewBox=\"0 0 ").Append(width).Append(' ').Append(height)
             .Append("\" width=\"100%\" role=\"img\">");
-        html.Append("<line x1=\"20\" y1=\"").Append(baseline).Append("\" x2=\"").Append(width - 20)
+        html.Append("<line x1=\"30\" y1=\"").Append(baseline).Append("\" x2=\"").Append(width - 30)
             .Append("\" y2=\"").Append(baseline).Append("\" stroke=\"#d5e1e6\" stroke-width=\"1\"/>");
+        var knownMax = items.Any(x => x.MaxScore is > 0);
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
-            var x = 20 + i * slot;
+            var x = 30 + i * slot;
             if (!item.Answered)
             {
-                html.Append("<rect x=\"").Append(x).Append("\" y=\"").Append(baseline - 6).Append("\" width=\"")
-                    .Append(barWidth).Append("\" height=\"6\" rx=\"2\" fill=\"#edf2f4\"/>");
+                html.Append("<rect x=\"").Append(x).Append("\" y=\"").Append(baseline - 8).Append("\" width=\"")
+                    .Append(barWidth).Append("\" height=\"8\" rx=\"2\" fill=\"#dde7eb\"/>");
                 continue;
             }
 
-            var max = item.MaxScore is > 0 ? item.MaxScore.Value : 1m;
-            var ratio = Math.Clamp((double)(item.Score ?? 0m) / (double)max, 0, 1);
-            var barHeight = Math.Max(4, (int)Math.Round((baseline - top) * ratio));
-            var color = ratio >= 0.999 ? Palette[0] : ratio <= 0 ? "#c9d6dc" : Palette[3];
+            int barHeight;
+            string color;
+            if (!knownMax)
+            {
+                // 没有每题满分时退化成「作答/未作答」二值图，避免画出一排看不见的柱子。
+                barHeight = 120;
+                color = Palette[0];
+            }
+            else
+            {
+                var max = item.MaxScore is > 0 ? item.MaxScore.Value : 1m;
+                var ratio = Math.Clamp((double)(item.Score ?? 0m) / (double)max, 0, 1);
+                barHeight = Math.Max(6, (int)Math.Round((baseline - top) * ratio));
+                color = ratio >= 0.999 ? Palette[0] : ratio <= 0 ? "#c9d6dc" : Palette[3];
+            }
+
             html.Append("<rect x=\"").Append(x).Append("\" y=\"").Append(baseline - barHeight).Append("\" width=\"")
                 .Append(barWidth).Append("\" height=\"").Append(barHeight).Append("\" rx=\"3\" fill=\"").Append(color).Append("\"/>");
+        }
+
+        foreach (var index in new[] { 0, items.Count / 2, items.Count - 1 }.Distinct())
+        {
+            var x = 30 + index * slot + barWidth / 2;
+            html.Append("<text x=\"").Append(x).Append("\" y=\"").Append(baseline + 22)
+                .Append("\" font-size=\"15\" fill=\"#7d939d\" text-anchor=\"middle\">Q").Append(index + 1).Append("</text>");
         }
         html.Append("</svg>");
     }
