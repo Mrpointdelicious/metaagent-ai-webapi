@@ -15,6 +15,7 @@ services:
       - .env.ai_webapi
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      PatientAccess__RequireIdentityProof: "true"
       TZ: Asia/Shanghai
     volumes:
       - ai_webapi_report_artifacts:/app/data/patient-reports
